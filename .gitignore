@@ -1,6 +1,6 @@
 # 特定のフォルダを除外
 data/
-__pycache/
+__pycache__/
 obsidian_vault/
 
 # 特定の拡張子を除外
