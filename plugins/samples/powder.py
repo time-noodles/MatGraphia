@@ -1,0 +1,4 @@
+SCHEMA = {
+    "type": "Powder",
+    "fields": []
+}
