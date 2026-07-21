@@ -95,48 +95,48 @@ def render_dynamic_form(schema_def,key_prefix,initial_data=None):
 
 
 def _render_stoichiometry(edited_df,total_mass,key_prefix,tname,form_data):
-    """Stoichiometry(仕込み計算)の自動算出を行う"""
     import pandas as pd
-
     calc_df=edited_df.copy()
-    if "item" not in calc_df.columns:
-        return
-
-    calc_df["M.W."]=calc_df["item"].apply(lambda x: get_molecular_weight(str(x)))
-
-    row1_mass=0.0
-    if len(calc_df)>0 and "mass" in calc_df.columns:
-        row1_mass=pd.to_numeric(calc_df.iloc[0]["mass"],errors="coerce")
-        if pd.isna(row1_mass):
-            row1_mass=0.0
-
-    if "Composition ratio" not in calc_df.columns:
-        return
-
+    if "item" not in calc_df.columns:return
+    mws=[]
+    for idx,row in calc_df.iterrows():
+        mw_val=0.0
+        if "M.W." in calc_df.columns:
+            mw_val=pd.to_numeric(row["M.W."],errors="coerce")
+        if not mw_val or pd.isna(mw_val) or mw_val<=0:
+            mw_val=get_molecular_weight(str(row["item"]))
+        mws.append(mw_val)
+    calc_df["M.W."]=mws
+    ref_idx,ref_mass=None,0.0
+    if "mass" in calc_df.columns:
+        for idx,row in calc_df.iterrows():
+            m=pd.to_numeric(row["mass"],errors="coerce")
+            if pd.notnull(m) and m>0:
+                ref_idx,ref_mass=idx,m
+                break
+    if "Composition ratio" not in calc_df.columns:return
     calc_df["Composition ratio"]=pd.to_numeric(calc_df["Composition ratio"],errors="coerce").fillna(0)
     calc_df["Base_Weight"]=calc_df["Composition ratio"]*calc_df["M.W."]
     sum_base_weight=calc_df["Base_Weight"].sum()
-
     if sum_base_weight<=0:
+        st.warning("分子量または組成比の計算が正しく行えません。")
         return
-
-    if row1_mass>0:
-        ratio1=calc_df.iloc[0]["Base_Weight"]
-        multiplier=row1_mass/ratio1 if ratio1>0 else 0
+    if ref_idx is not None and ref_mass>0:
+        ref_base=calc_df.iloc[ref_idx]["Base_Weight"]
+        multiplier=ref_mass/ref_base if ref_base>0 else 0
         calc_df["ideal (g)"]=calc_df["Base_Weight"]*multiplier
     else:
         calc_df["ideal (g)"]=(calc_df["Base_Weight"]/sum_base_weight)*total_mass
-
     calc_df["ideal S 換算 (g)"]=None
     s_mw=get_molecular_weight("S")
+    if s_mw<=0:s_mw=32.06
     for idx,row in calc_df.iterrows():
-        item_str=str(row["item"])
-        if any(sub in item_str for sub in ["Se","Te","S"]):
+        item_str=str(row["item"]).upper()
+        if any(x in item_str for x in ["SE","TE","S"]):
             moles=row["ideal (g)"]/row["M.W."] if row["M.W."]>0 else 0
-            calc_df.at[idx,"ideal S 換算 (g)"]=round(moles*s_mw,4) if s_mw>0 else None
-
+            calc_df.at[idx,"ideal S 換算 (g)"]=round(moles*s_mw,4)
     st.markdown("**(自動計算結果) Ideal Mass & S conversion**")
-    calc_df["ideal (g)"]=calc_df["ideal (g)"].apply(lambda x: round(x,4) if pd.notnull(x) else x)
+    calc_df["ideal (g)"]=calc_df["ideal (g)"].apply(lambda x:round(x,4) if pd.notnull(x) else x)
     display_cols=["item","Composition ratio","M.W.","ideal (g)","ideal S 換算 (g)","mass"]
     st.dataframe(calc_df[[c for c in display_cols if c in calc_df.columns]],hide_index=True)
     form_data[tname+"_calculated"]=calc_df.to_dict(orient="records")

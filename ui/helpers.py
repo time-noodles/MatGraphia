@@ -145,3 +145,32 @@ def build_measurement_label(m,samples_dict=None):
         parts.append(f"| 備考:{remarks_short}")
     parts.append(f"#{m['measurement_id'][:4]}")
     return " ".join(parts)
+
+
+def log_errors(page_name:str):
+    def decorator(func):
+        import functools
+        @functools.wraps(func)
+        def wrapper(*args,**kwargs):
+            try:
+                return func(*args,**kwargs)
+            except Exception as e:
+                import traceback
+                import uuid
+                import database as db
+                import streamlit as st
+                tb_str=traceback.format_exc()
+                log_id=str(uuid.uuid4())
+                try:
+                    db.insert_developer_log(
+                        log_id=log_id,
+                        log_type="Error",
+                        title=f"Error in {page_name}: {type(e).__name__}",
+                        content=tb_str,
+                        page_name=page_name
+                    )
+                except Exception:
+                    pass
+                st.exception(e)
+        return wrapper
+    return decorator
