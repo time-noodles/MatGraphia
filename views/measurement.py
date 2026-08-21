@@ -96,7 +96,7 @@ def _render_xrd_upload_preview(uploaded_bytes,file_name,selected_sample_id,sampl
             caption=f"XRD Preview - Exp. vs Sim."
             if n_related>0:
                 caption+=f" (+{n_related} related)"
-            st.image(comp_png,caption=caption,use_container_width=True)
+            st.image(comp_png,caption=caption)
             return
         elif comp_err:
             st.warning(f"比較グラフ描画に失敗（実測のみ表示）: {comp_err}")
@@ -159,7 +159,7 @@ def _render_xrd_upload_preview(uploaded_bytes,file_name,selected_sample_id,sampl
         buf=_io.BytesIO()
         fig.savefig(buf,format="png",dpi=180)
         plt.close(fig)
-        st.image(buf.getvalue(),caption=f"XRD Preview - {file_name} (実測のみ)",use_container_width=True)
+        st.image(buf.getvalue(),caption=f"XRD Preview - {file_name} (実測のみ)")
     except Exception as e:
         st.warning(f"XRDプレビューの描画に失敗しました: {e}")
 
@@ -222,7 +222,11 @@ def render():
             digest=hashlib.md5(uploaded_bytes).hexdigest()[:10]
             form_key_prefix=f"measure_{measurement_type}_{safe_name[:30]}_{digest}"
         conditions=render_dynamic_form(schema,key_prefix=form_key_prefix,initial_data=plugin_initial_data)
-        submitted=st.form_submit_button("測定データを登録する")
+        col_ms1,col_ms2=st.columns(2)
+        with col_ms1:
+            submitted=st.form_submit_button("測定データを登録する (本登録)",type="primary")
+        with col_ms2:
+            draft_submitted=st.form_submit_button("下書き（仮登録）する")
         if submitted:
             if not sample_lbl or not measurement_type or not measured_at:
                 st.error("【必須エラー】 対象サンプル、測定タイプ、測定日は必須項目です。")
@@ -247,7 +251,8 @@ def render():
                     conditions=conditions,
                     operator=operator,
                     measured_at=measured_at,
-                    remarks=remarks
+                    remarks=remarks,
+                    is_draft=False
                 )
                 if uploaded_file is not None:
                     file_bytes=uploaded_bytes
@@ -315,7 +320,7 @@ def render():
                                 if not isinstance(msr.extracted_features,dict):
                                     msr.extracted_features={}
                                 msr.extracted_features["xrd_comparison_plot_path"]=plot_rel
-                                st.image(comp_png,caption=f"XRD Comparison ({mode_text})",use_container_width=True)
+                                st.image(comp_png,caption=f"XRD Comparison ({mode_text})")
                                 if sim_results_list:
                                     first_sim=sim_results_list[0]
                                     prof=first_sim.get("profile") or {}
@@ -348,8 +353,26 @@ def render():
                     except Exception as e:
                         st.warning(f"XRD比較グラフの生成に失敗しました: {e}")
                 db.insert_measurement(msr)
-                st.success(f"測定データを登録しました！ (ID: {msr.measurement_id})")
+                st.success(f"測定データを本登録しました！ (ID: {msr.measurement_id})")
                 if msr.raw_data_path:
                     st.info(f"生データをRaw保管庫へ安全に保存しました: `{msr.raw_data_path}`")
             except Exception as e:
                 st.error(f"登録時にエラーが発生しました: {e}")
+        elif draft_submitted:
+            try:
+                msr=Measurement(
+                    sample_id=selected_sample_id or (samples[0]["sample_id"] if samples else ""),
+                    measurement_type=measurement_type or "XRD",
+                    conditions=conditions or {},
+                    operator=operator or "",
+                    measured_at=measured_at if measured_at else date.today(),
+                    remarks=remarks or "",
+                    is_draft=True
+                )
+                if uploaded_file is not None and uploaded_bytes:
+                    rel_path=fm.save_raw_file(msr.measurement_id,uploaded_file.name,uploaded_bytes)
+                    msr.raw_data_path=rel_path
+                db.insert_measurement(msr)
+                st.success(f"測定データを下書き（仮登録）しました！データ管理画面で後から補完・本登録できます。(ID: {msr.measurement_id})")
+            except Exception as e:
+                st.error(f"下書き登録時にエラーが発生しました: {e}")

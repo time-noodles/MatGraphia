@@ -16,10 +16,12 @@ class Literature(BaseModel):
     venue:Optional[str]=None
     publication_year:Optional[int]=None
     volume:Optional[str]=None
+    pages:Optional[str]=None
     parameters:Dict[str,Any]=Field(default_factory=dict)
     doi:str
     pdf_file_path:Optional[str]=None
     remarks:str
+    is_draft:bool=False
     created_at:datetime=Field(default_factory=datetime.now)
     updated_at:Optional[datetime]=None
 
@@ -35,6 +37,7 @@ class Event(BaseModel):
     motivation:Optional[str]=None
     parameters:Dict[str,Any]=Field(default_factory=dict)
     remarks:Optional[str]=None
+    is_draft:bool=False
     created_at:datetime=Field(default_factory=datetime.now)
     updated_at:Optional[datetime]=None
 
@@ -47,6 +50,7 @@ class Sample(BaseModel):
     parameters:Dict[str,Any]=Field(default_factory=dict)
     location:Optional[str]=None
     remarks:Optional[str]=None
+    is_draft:bool=False
     created_at:datetime=Field(default_factory=datetime.now)
     updated_at:Optional[datetime]=None
 
@@ -62,6 +66,7 @@ class Measurement(BaseModel):
     operator:Optional[str]=None
     measured_at:date=Field(default_factory=date.today)
     remarks:Optional[str]=None
+    is_draft:bool=False
     created_at:datetime=Field(default_factory=datetime.now)
     updated_at:Optional[datetime]=None
 
@@ -86,12 +91,14 @@ class Material(BaseModel):
     polymorph_material_ids:List[str]=Field(default_factory=list)
     cif_file_path:Optional[str]=None
     remarks:Optional[str]=None
+    is_draft:bool=False
     created_at:datetime=Field(default_factory=datetime.now)
     updated_at:Optional[datetime]=None
 
 # タスク管理
 class Task(BaseModel):
     task_id:str=Field(default_factory=generate_uuid)
+    parent_task_id:Optional[str]=None
     title:str
     status:str="Todo"
     related_entity_type:Optional[str]=None

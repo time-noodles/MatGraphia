@@ -5,12 +5,18 @@ from datetime import datetime,timedelta
 
 
 def get_molecular_weight(formula):
-    """化学式から分子量を計算する (遅延インポート)"""
+    """化学式から分子量を計算する"""
     if not formula:
         return 0.0
     try:
-        from chempy import Substance
-        return float(Substance.from_formula(str(formula).strip()).mass)
+        from ui.helpers import calc_molecular_weight,get_atomic_weight
+        # 複合式を試みる
+        mw=calc_molecular_weight(str(formula).strip())
+        if mw and mw>0:
+            return float(mw)
+        # 単元素の原子量
+        aw=get_atomic_weight(str(formula).strip())
+        return float(aw) if aw else 0.0
     except Exception:
         return 0.0
 
@@ -100,11 +106,14 @@ def _render_stoichiometry(edited_df,total_mass,key_prefix,tname,form_data):
     if "item" not in calc_df.columns:return
     mws=[]
     for idx,row in calc_df.iterrows():
-        mw_val=0.0
-        if "M.W." in calc_df.columns:
-            mw_val=pd.to_numeric(row["M.W."],errors="coerce")
-        if not mw_val or pd.isna(mw_val) or mw_val<=0:
-            mw_val=get_molecular_weight(str(row["item"]))
+        # item列の値から常時M.W.を再計算し直す（編集後の即時反映）
+        item_str=str(row.get("item","")).strip()
+        mw_val=get_molecular_weight(item_str) if item_str else 0.0
+        # get_molecular_weightが0のときのみ既存の手動入力値を使用
+        if (not mw_val or mw_val<=0) and "M.W." in calc_df.columns:
+            manual=pd.to_numeric(row["M.W."],errors="coerce")
+            if pd.notnull(manual) and manual>0:
+                mw_val=float(manual)
         mws.append(mw_val)
     calc_df["M.W."]=mws
     ref_idx,ref_mass=None,0.0

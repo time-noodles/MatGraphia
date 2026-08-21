@@ -21,31 +21,49 @@ def render():
         return
     evt_options={build_event_label(e):e["event_id"] for e in events}
     sample_type_options=list(SAMPLE_FORM_SCHEMAS.keys()) if SAMPLE_FORM_SCHEMAS else ["Single Crystal","Powder"]
-    with st.form("sample_form"):
-        source_event_key=st.selectbox("生成元のイベント",list(evt_options.keys()))
+    with st.container():
+        source_event_key=st.selectbox("生成元のイベント",list(evt_options.keys()),key="draft_smp_evt")
         source_event_id=evt_options[source_event_key]
-        human_id=st.text_input("人間用識別バッチ名 (例: 01-Powder)",value="01-Test")
-        form_type=st.selectbox("形状",sample_type_options)
-        location=st.text_input("物理的な保管場所",value="デシケーターA")
-        remarks=st.text_area("備考")
+        human_id=st.text_input("人間用識別バッチ名 (例: 01-Powder)",value="01-Test",key="draft_smp_hid")
+        form_type=st.selectbox("形状",sample_type_options,key="draft_smp_form")
+        location=st.text_input("物理的な保管場所",value="デシケーターA",key="draft_smp_loc")
+        remarks=st.text_area("備考",key="draft_smp_remarks")
         schema=SAMPLE_FORM_SCHEMAS.get(form_type,{})
         parameters=render_dynamic_form(schema,key_prefix="sample")
-        submitted=st.form_submit_button("サンプルを登録する")
-        if submitted:
-            new_smp_dict={"source_event_id":source_event_id,"human_id":human_id,"form":form_type}
-            if is_duplicate_sample(new_smp_dict,samples):
-                st.error("【重複エラー】 同じ生成元イベントに対し、同名・同形状のサンプルが既に登録されています。")
-                return
-            try:
-                smp=Sample(
-                    source_event_id=source_event_id,
-                    human_id=human_id,
-                    form=form_type,
-                    parameters=parameters,
-                    location=location,
-                    remarks=remarks
-                )
-                db.insert_sample(smp)
-                st.success(f"サンプルを登録しました！ (ID: {smp.sample_id})")
-            except Exception as e:
-                st.error(f"登録時にエラーが発生しました: {e}")
+        col1,col2=st.columns(2)
+        with col1:
+            if st.button("サンプルを登録する (本登録)",type="primary"):
+                new_smp_dict={"source_event_id":source_event_id,"human_id":human_id,"form":form_type}
+                if is_duplicate_sample(new_smp_dict,samples):
+                    st.error("【重複エラー】 同じ生成元イベントに対し、同名・同形状のサンプルが既に登録されています。")
+                    return
+                try:
+                    smp=Sample(
+                        source_event_id=source_event_id,
+                        human_id=human_id,
+                        form=form_type,
+                        parameters=parameters,
+                        location=location,
+                        remarks=remarks,
+                        is_draft=False
+                    )
+                    db.insert_sample(smp)
+                    st.success(f"サンプルを本登録しました！ (ID: {smp.sample_id})")
+                except Exception as e:
+                    st.error(f"登録時にエラーが発生しました: {e}")
+        with col2:
+            if st.button("下書き（仮登録）する"):
+                try:
+                    smp=Sample(
+                        source_event_id=source_event_id,
+                        human_id=human_id or "Draft-Sample",
+                        form=form_type or "Powder",
+                        parameters=parameters or {},
+                        location=location or "",
+                        remarks=remarks or "",
+                        is_draft=True
+                    )
+                    db.insert_sample(smp)
+                    st.success(f"サンプルを下書き（仮登録）しました！データ管理画面で後から補完・本登録できます。(ID: {smp.sample_id})")
+                except Exception as e:
+                    st.error(f"下書き登録時にエラーが発生しました: {e}")

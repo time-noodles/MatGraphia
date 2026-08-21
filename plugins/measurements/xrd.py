@@ -187,7 +187,9 @@ def render_simulated_xrd_plot_png(sim_result: dict):
                     y_profile = float(np.interp(px, x, y)) if len(x) > 1 else py
                     sp.ax.text(px, min(1.02, y_profile + 0.04), label, rotation=90, ha="center", va="bottom", fontsize=10)
 
-        sp.ax.legend(frameon=False, loc="upper right", fontsize=12)
+        handles,labels=sp.ax.get_legend_handles_labels()
+        if handles and any(not l.startswith("_") for l in labels):
+            sp.ax.legend(frameon=False,loc="upper right",fontsize=12)
 
         fig.tight_layout()
         buf = io.BytesIO()

@@ -85,6 +85,10 @@ def render():
         if df.empty:
             st.info("キーワードに一致するデータはありません。")
             return None
+        if "is_draft" in df.columns:
+            df["ステータス"]=df["is_draft"].apply(lambda x: "[下書き]" if (x and str(x)!="0") else "本登録")
+            if display_cols and "ステータス" not in display_cols:
+                display_cols.insert(1,"ステータス")
         if "select" not in df.columns:
             df.insert(0,"select",[False]*len(df))
         df_for_editor=df.copy()
@@ -99,7 +103,6 @@ def render():
         edited_df=st.data_editor(
             df_for_editor,
             hide_index=True,
-            use_container_width=True,
             disabled=[c for c in df_for_editor.columns if c!="select"],
             column_config=column_config,
             key=f"editor_v2_{choice}_{id_col}"
@@ -129,12 +132,14 @@ def render():
             with col2:
                 doi=st.text_input("DOI",value=target["doi"])
                 venue=st.text_input("発表先",value=target.get("venue") or "")
-            col3,col4=st.columns(2)
+            col3,col4,col5=st.columns(3)
             with col3:
                 pub_year_default=int(target.get("publication_year") or 0)
                 publication_year=st.number_input("発行年",min_value=0,max_value=3000,value=pub_year_default,step=1)
             with col4:
                 volume=st.text_input("巻 (Volume)",value=target.get("volume") or "")
+            with col5:
+                pages=st.text_input("ページ (Pages)",value=target.get("pages") or "")
             remarks=st.text_area("備考",value=target["remarks"] or "")
             uploaded_pdf=st.file_uploader("文献PDFの差し替え・更新",type=["pdf"])
             schema=LITERATURE_SCHEMAS.get(target.get("literature_type"),{})
@@ -146,7 +151,7 @@ def render():
                     target.update({
                         "title":title,"authors":authors,"doi":doi,"venue":venue,
                         "publication_year":int(publication_year) if publication_year>0 else None,
-                        "volume":volume,"parameters":merged_params,"remarks":remarks
+                        "volume":volume,"pages":pages,"parameters":merged_params,"remarks":remarks
                     })
                     if uploaded_pdf:
                         target["pdf_file_path"]=fm.save_literature_file(sel_id,uploaded_pdf.name,uploaded_pdf.getvalue())
@@ -169,6 +174,7 @@ def render():
                         venue=target.get("venue"),
                         publication_year=target.get("publication_year"),
                         volume=target.get("volume"),
+                        pages=target.get("pages"),
                         parameters=existing_params if isinstance(existing_params,dict) else {}
                     )
                     db.insert_literature(new_lit)
@@ -414,7 +420,7 @@ def render():
             if plot_abs:
                 try:
                     with open(plot_abs,"rb") as f:
-                        st.image(f.read(),caption="Saved XRD plot",use_container_width=True)
+                        st.image(f.read(),caption="Saved XRD plot")
                 except Exception:
                     st.warning(f"XRD画像の読込に失敗しました: {plot_rel}")
             processed_abs=_resolve_data_abs_path(target.get("processed_data_path"))
@@ -547,13 +553,13 @@ def render():
                     st.markdown("**Summary**")
                     summary=dict(graph_payload["summary"])
                     atom_counts=summary.pop("atom_counts",{})
-                    st.dataframe(pd.DataFrame([summary]),hide_index=True,use_container_width=True)
+                    st.dataframe(pd.DataFrame([summary]),hide_index=True)
                     if isinstance(atom_counts,dict) and atom_counts:
                         counts_df=pd.DataFrame(
                             [{"element":k,"count_in_unit_cell":v} for k,v in sorted(atom_counts.items())]
                         )
                         st.markdown("**Atom Counts in Unit Cell**")
-                        st.dataframe(counts_df,hide_index=True,use_container_width=True)
+                        st.dataframe(counts_df,hide_index=True)
                     with st.expander("StructureGraph raw output"):st.text(str(graph_obj))
                 xrd_plugin=_load_measurement_plugin("XRD")
                 if xrd_plugin and hasattr(xrd_plugin,"simulate_xrd_for_cif_bytes"):
@@ -591,7 +597,7 @@ def render():
                                 material_name=target.get("name") or "Unknown",
                             )
                         if sim_result:
-                            if png_bytes:st.image(png_bytes,caption=f"XRD simulated pattern ({sim_result.get('mode')})",use_container_width=True)
+                            if png_bytes:st.image(png_bytes,caption=f"XRD simulated pattern ({sim_result.get('mode')})")
                             if plot_err:st.warning(plot_err)
                             st.info(f"mode={sim_result.get('mode')} / target={sim_result.get('target')} / peaks={sim_result.get('peak_count')}")
                         elif sim_err:st.warning(sim_err)

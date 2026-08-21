@@ -67,13 +67,40 @@ def render():
             f_tsks=filter_by_keywords(tsks,kws,["title","remarks"])
             if f_lits:
                 st.markdown(f"**文献 ({len(f_lits)}件)**")
-                st.dataframe(pd.DataFrame(f_lits)[["literature_id","title","authors","doi"]],hide_index=True)
+                for lit in f_lits[:10]:
+                    col_txt,col_act=st.columns([4,1])
+                    with col_txt:
+                        st.caption(f"📖 **{lit['title']}** ({lit.get('authors','')}) - DOI: {lit.get('doi','(なし)')}")
+                    with col_act:
+                        if st.button("🔗 イベントの派生元に指定",key=f"link_lit_{lit['literature_id']}"):
+                            st.session_state["evt_search_q"]=lit["title"]
+                            st.session_state["nav_menu"]="イベントの登録"
+                            st.rerun()
+                if len(f_lits)>10:st.dataframe(pd.DataFrame(f_lits)[["literature_id","title","authors","doi"]],hide_index=True)
             if f_evts:
                 st.markdown(f"**イベント ({len(f_evts)}件)**")
-                st.dataframe(pd.DataFrame(f_evts)[["event_id","project_id","target_material","event_type"]],hide_index=True)
+                for evt in f_evts[:10]:
+                    col_txt,col_act=st.columns([4,1])
+                    with col_txt:
+                        st.caption(f"⚡ **[{evt['event_type']}]** {evt['target_material']} (Proj: {evt['project_id']})")
+                    with col_act:
+                        if st.button("🔗 イベントの参照元に指定",key=f"link_evt_{evt['event_id']}"):
+                            st.session_state["evt_search_q"]=evt["target_material"]
+                            st.session_state["nav_menu"]="イベントの登録"
+                            st.rerun()
+                if len(f_evts)>10:st.dataframe(pd.DataFrame(f_evts)[["event_id","project_id","target_material","event_type"]],hide_index=True)
             if f_smps:
                 st.markdown(f"**サンプル ({len(f_smps)}件)**")
-                st.dataframe(pd.DataFrame(f_smps)[["sample_id","human_id","form","location"]],hide_index=True)
+                for smp in f_smps[:10]:
+                    col_txt,col_act=st.columns([4,1])
+                    with col_txt:
+                        st.caption(f"🧪 **{smp['human_id']}** ({smp['form']}) - 保管: {smp.get('location','(未指定)')}")
+                    with col_act:
+                        if st.button("🔗 サンプルの元データに指定",key=f"link_smp_{smp['sample_id']}"):
+                            st.session_state["evt_search_q"]=smp["human_id"]
+                            st.session_state["nav_menu"]="イベントの登録"
+                            st.rerun()
+                if len(f_smps)>10:st.dataframe(pd.DataFrame(f_smps)[["sample_id","human_id","form","location"]],hide_index=True)
             if f_msrs:
                 st.markdown(f"**測定 ({len(f_msrs)}件)**")
                 st.dataframe(pd.DataFrame(f_msrs)[["measurement_id","measurement_type","operator"]],hide_index=True)

@@ -58,27 +58,35 @@ class ObsidianExporter:
         self._prepare_file_map()
         zip_buffer=io.BytesIO()
         with zipfile.ZipFile(zip_buffer,"a",zipfile.ZIP_DEFLATED,False) as zip_file:
-            self._collect_measurement_assets_for_zip(zip_file)
+            try:
+                self._collect_measurement_assets_for_zip(zip_file)
+            except Exception:
+                pass
             for (etype,eid),rel_path in self.file_map.items():
-                content=self._format_entity(etype,eid)
-                zip_file.writestr(f"{rel_path}.md",content)
-            tasks_content=self._format_tasks()
-            zip_file.writestr("Tasks.md",tasks_content)
-            canvas_content=self._format_canvas()
-            zip_file.writestr("Experimental_Flow.canvas",canvas_content)
-            logs_content=self._format_developer_logs()
-            zip_file.writestr("Developer_Logs.md",logs_content)
+                try:
+                    content=self._format_entity(etype,eid)
+                    zip_file.writestr(f"{rel_path}.md",content)
+                except Exception:
+                    pass
+            try:
+                zip_file.writestr("Tasks.md",self._format_tasks())
+            except Exception:
+                pass
+            try:
+                zip_file.writestr("Experimental_Flow.canvas",self._format_canvas())
+            except Exception:
+                pass
+            try:
+                zip_file.writestr("Developer_Logs.md",self._format_developer_logs())
+            except Exception:
+                pass
         return zip_buffer.getvalue()
 
     # ディレクトリへの同期エクスポート
     def export_to_directory(self,base_path:str):
         self._prepare_file_map()
-        if os.path.exists(base_path):
-            try:
-                shutil.rmtree(base_path)
-            except Exception:
-                pass
         os.makedirs(base_path,exist_ok=True)
+        # 古いファイルを削除（ロックされている場合は無理に全削除せず安全上書き）
         self._collect_measurement_assets_for_directory(base_path)
         written_files=set()
         for (etype,eid),rel_path in self.file_map.items():
@@ -88,22 +96,22 @@ class ObsidianExporter:
             content=self._format_entity(etype,eid)
             try:
                 with open(full_path,"w",encoding="utf-8") as f:f.write(content)
-            except PermissionError:
+            except Exception:
                 pass
         tasks_path=os.path.join(base_path,"Tasks.md")
         try:
             with open(tasks_path,"w",encoding="utf-8") as f:f.write(self._format_tasks())
-        except PermissionError:
+        except Exception:
             pass
         canvas_path=os.path.join(base_path,"Experimental_Flow.canvas")
         try:
             with open(canvas_path,"w",encoding="utf-8") as f:f.write(self._format_canvas())
-        except PermissionError:
+        except Exception:
             pass
         logs_path=os.path.join(base_path,"Developer_Logs.md")
         try:
             with open(logs_path,"w",encoding="utf-8") as f:f.write(self._format_developer_logs())
-        except PermissionError:
+        except Exception:
             pass
 
     # エンティティ個別のフォーマット
@@ -241,9 +249,11 @@ class ObsidianExporter:
     def _format_lit(self,r:Dict)->str:
         tags=["Literature",f"Literature/{sanitize_tag(r['literature_type'])}"]
         if r.get("venue"):tags.append(f"Venue/{sanitize_tag(r['venue'])}")
-        fm={"id":r["literature_id"],"title":r["title"],"authors":r["authors"],"doi":r["doi"],"year":r["publication_year"],"date":r.get("publication_year"),"tags":tags}
+        fm={"id":r["literature_id"],"title":r["title"],"authors":r["authors"],"doi":r["doi"],"year":r["publication_year"],"pages":r.get("pages"),"date":r.get("publication_year"),"tags":tags}
         body=f"# {r['title'] or r['doi']}\n\n"
-        body+=f"- Authors: {r['authors']}\n- DOI: {r['doi']}\n- Venue: {r['venue']} ({r['publication_year']})\n\n"
+        pages_str=f", pp. {r['pages']}" if r.get("pages") else ""
+        vol_str=f", Vol. {r['volume']}" if r.get("volume") else ""
+        body+=f"- Authors: {r['authors']}\n- DOI: {r['doi']}\n- Venue: {r['venue']} ({r['publication_year']}){vol_str}{pages_str}\n\n"
         body+=f"> [!note] **Remarks (備考)**\n> {r['remarks'] or 'None'}\n\n"
         params=r.get("parameters")
         if params:

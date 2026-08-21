@@ -10,12 +10,29 @@ from schemas import Literature,Event,Sample,Measurement,ComparisonFigure,Materia
 
 DB_PATH="data/matgraphia.db"
 
-# SQLiteの接続を取得
+# SQLiteの接続を取得（Google Drive環境のBus Errorを防止するためDELETEモードを設定）
 def get_connection()->sqlite3.Connection:
-    conn=sqlite3.connect(DB_PATH)
+    conn=sqlite3.connect(DB_PATH,timeout=30.0)
     conn.row_factory=sqlite3.Row
+    conn.execute("PRAGMA journal_mode = DELETE")
+    conn.execute("PRAGMA busy_timeout = 10000")
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
+
+# 安全なキャッシュクリア＆デコレータ（Streamlitコンテキスト外や非同期スレッドでの警告ノイズを完全防止）
+def _safe_cache_clear():
+    try:
+        from streamlit.runtime.scriptrunner import get_script_run_ctx
+        if get_script_run_ctx() is not None:
+            st.cache_data.clear()
+    except Exception:
+        pass
+
+def _safe_cache_data(func):
+    try:
+        return st.cache_data(func)
+    except Exception:
+        return func
 
 # データベースの初期化とリレーショナルテーブル生成
 def init_db():
@@ -31,6 +48,7 @@ def init_db():
         venue TEXT,
         publication_year INTEGER,
         volume TEXT,
+        pages TEXT,
         parameters TEXT,
         doi TEXT,
         pdf_file_path TEXT,
@@ -39,6 +57,16 @@ def init_db():
         updated_at DATETIME
     )
     """)
+    # 既存テーブルへのpages/is_draftカラムマイグレーション
+    for tbl in ["literatures","events","samples","measurements","materials"]:
+        cursor.execute(f"PRAGMA table_info({tbl})")
+        cols=[col[1] for col in cursor.fetchall()]
+        if tbl=="literatures" and "pages" not in cols:
+            try:cursor.execute("ALTER TABLE literatures ADD COLUMN pages TEXT")
+            except Exception:pass
+        if "is_draft" not in cols:
+            try:cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN is_draft INTEGER DEFAULT 0")
+            except Exception:pass
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS events (
         event_id TEXT PRIMARY KEY,
@@ -110,6 +138,7 @@ def init_db():
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS tasks (
         task_id TEXT PRIMARY KEY,
+        parent_task_id TEXT,
         title TEXT,
         status TEXT,
         related_entity_type TEXT,
@@ -120,6 +149,11 @@ def init_db():
         updated_at DATETIME
     )
     """)
+    cursor.execute("PRAGMA table_info(tasks)")
+    task_cols=[col[1] for col in cursor.fetchall()]
+    if "parent_task_id" not in task_cols:
+        try:cursor.execute("ALTER TABLE tasks ADD COLUMN parent_task_id TEXT")
+        except Exception:pass
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
@@ -195,21 +229,36 @@ def init_db():
         content TEXT,
         page_name TEXT,
         status TEXT DEFAULT 'Open',
-        created_at DATETIME
+        created_at DATETIME,
+        action_plan TEXT,
+        verification_notes TEXT
     )
     """)
+    cursor.execute("PRAGMA table_info(developer_logs)")
+    cols=[c[1] for c in cursor.fetchall()]
+    if "action_plan" not in cols:
+        cursor.execute("ALTER TABLE developer_logs ADD COLUMN action_plan TEXT")
+    if "verification_notes" not in cols:
+        cursor.execute("ALTER TABLE developer_logs ADD COLUMN verification_notes TEXT")
     conn.commit()
     conn.close()
 
-# Obsidianとの同期処理
+# Obsidianとの同期処理（UIをブロックしない非同期スレッド実行）
 def sync_obsidian(force=False):
     if not force and get_setting("obsidian_auto_sync","False")=="False":return
-    path=os.path.join(os.getcwd(),"obsidian_vault")
-    try:
-        from obsidian_exporter import ObsidianExporter
-        ObsidianExporter(sys.modules[__name__]).export_to_directory(path)
-    except Exception:
-        pass
+    import threading
+    def _run_export():
+        try:
+            path=os.path.join(os.getcwd(),"obsidian_vault")
+            from obsidian_exporter import ObsidianExporter
+            ObsidianExporter(sys.modules[__name__]).export_to_directory(path)
+        except Exception as e:
+            try:
+                import logger_config as lc
+                lc.get_logger("database").error(f"Obsidian sync error: {e}")
+            except Exception:
+                pass
+    threading.Thread(target=_run_export,daemon=True).start()
 
 # 備考などのテキストからハッシュタグを抽出して登録
 def extract_and_save_tags(entity_type:str,entity_id:str,text:str,cursor:sqlite3.Cursor):
@@ -245,16 +294,16 @@ def insert_literature(lit:Literature):
     cursor=conn.cursor()
     cursor.execute("""
         INSERT INTO literatures (
-            literature_id,literature_type,title,authors,venue,publication_year,volume,parameters,doi,pdf_file_path,remarks,created_at
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            literature_id,literature_type,title,authors,venue,publication_year,volume,pages,parameters,doi,pdf_file_path,remarks,is_draft,created_at
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """,(
         lit.literature_id,lit.literature_type,lit.title,lit.authors,lit.venue,
-        lit.publication_year,lit.volume,json.dumps(lit.parameters),lit.doi,lit.pdf_file_path,lit.remarks,lit.created_at.isoformat()
+        lit.publication_year,lit.volume,lit.pages,json.dumps(lit.parameters),lit.doi,lit.pdf_file_path,lit.remarks,1 if lit.is_draft else 0,lit.created_at.isoformat()
     ))
     extract_and_save_tags("Literature",lit.literature_id,lit.remarks,cursor)
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 # イベントの挿入
@@ -263,10 +312,10 @@ def insert_event(evt:Event):
     cursor=conn.cursor()
     cursor.execute("""
         INSERT INTO events (
-            event_id,project_id,target_material,event_type,motivation,parameters,remarks,created_at
-        ) VALUES (?,?,?,?,?,?,?,?)
+            event_id,project_id,target_material,event_type,motivation,parameters,remarks,is_draft,created_at
+        ) VALUES (?,?,?,?,?,?,?,?,?)
     """,(
-        evt.event_id,evt.project_id,evt.target_material,evt.event_type,evt.motivation,json.dumps(evt.parameters),evt.remarks,evt.created_at.isoformat()
+        evt.event_id,evt.project_id,evt.target_material,evt.event_type,evt.motivation,json.dumps(evt.parameters),evt.remarks,1 if evt.is_draft else 0,evt.created_at.isoformat()
     ))
     for sid in evt.input_sample_ids:
         cursor.execute("INSERT INTO event_inputs (event_id,sample_id) VALUES (?,?)",(evt.event_id,sid))
@@ -278,7 +327,7 @@ def insert_event(evt:Event):
     extract_and_save_tags("Event",evt.event_id,evt.motivation,cursor)
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 # サンプルの挿入
@@ -287,15 +336,15 @@ def insert_sample(smp:Sample):
     cursor=conn.cursor()
     cursor.execute("""
         INSERT INTO samples (
-            sample_id,source_event_id,human_id,form,parameters,location,remarks,created_at
-        ) VALUES (?,?,?,?,?,?,?,?)
+            sample_id,source_event_id,human_id,form,parameters,location,remarks,is_draft,created_at
+        ) VALUES (?,?,?,?,?,?,?,?,?)
     """,(
-        smp.sample_id,smp.source_event_id,smp.human_id,smp.form,json.dumps(smp.parameters),smp.location,smp.remarks,smp.created_at.isoformat()
+        smp.sample_id,smp.source_event_id,smp.human_id,smp.form,json.dumps(smp.parameters),smp.location,smp.remarks,1 if smp.is_draft else 0,smp.created_at.isoformat()
     ))
     extract_and_save_tags("Sample",smp.sample_id,smp.remarks,cursor)
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 # 測定データの挿入
@@ -305,17 +354,17 @@ def insert_measurement(msr:Measurement):
     cursor.execute("""
         INSERT INTO measurements (
             measurement_id,sample_id,measurement_type,conditions,raw_data_path,
-            processed_data_path,extracted_features,operator,measured_at,remarks,created_at
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            processed_data_path,extracted_features,operator,measured_at,remarks,is_draft,created_at
+        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
     """,(
         msr.measurement_id,msr.sample_id,msr.measurement_type,json.dumps(msr.conditions),
         msr.raw_data_path,msr.processed_data_path,json.dumps(msr.extracted_features),
-        msr.operator,msr.measured_at.isoformat(),msr.remarks,msr.created_at.isoformat()
+        msr.operator,msr.measured_at.isoformat(),msr.remarks,1 if msr.is_draft else 0,msr.created_at.isoformat()
     ))
     extract_and_save_tags("Measurement",msr.measurement_id,msr.remarks,cursor)
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 # 比較図の挿入
@@ -334,7 +383,7 @@ def insert_comparison_figure(fig:ComparisonFigure):
     extract_and_save_tags("ComparisonFigure",fig.figure_id,fig.remarks,cursor)
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 # 物質メタデータの挿入
@@ -355,7 +404,7 @@ def insert_material(mat:Material):
     extract_and_save_tags("Material",mat.material_id,mat.remarks,cursor)
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 # タスクの挿入
@@ -364,28 +413,62 @@ def insert_task(tsk:Task):
     cursor=conn.cursor()
     cursor.execute("""
         INSERT INTO tasks (
-            task_id,title,status,related_entity_type,related_entity_id,due_date,remarks,created_at
-        ) VALUES (?,?,?,?,?,?,?,?)
+            task_id,parent_task_id,title,status,related_entity_type,related_entity_id,due_date,remarks,created_at
+        ) VALUES (?,?,?,?,?,?,?,?,?)
     """,(
-        tsk.task_id,tsk.title,tsk.status,tsk.related_entity_type,tsk.related_entity_id,tsk.due_date,tsk.remarks,tsk.created_at.isoformat()
+        tsk.task_id,tsk.parent_task_id,tsk.title,tsk.status,tsk.related_entity_type,tsk.related_entity_id,tsk.due_date,tsk.remarks,tsk.created_at.isoformat()
     ))
     extract_and_save_tags("Task",tsk.task_id,tsk.remarks,cursor)
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 # 開発フィードバック/エラーログの挿入
-def insert_developer_log(log_id:str,log_type:str,title:str,content:str,page_name:str,status:str="Open"):
+def insert_developer_log(log_id:str,log_type:str,title:str,content:str,page_name:str,status:str="Open",action_plan:str="",verification_notes:str=""):
     conn=get_connection()
     cursor=conn.cursor()
     cursor.execute("""
-        INSERT INTO developer_logs (log_id,log_type,title,content,page_name,status,created_at)
-        VALUES (?,?,?,?,?,?,?)
-    """,(log_id,log_type,title,content,page_name,status,datetime.now().isoformat()))
+        INSERT INTO developer_logs (log_id,log_type,title,content,page_name,status,created_at,action_plan,verification_notes)
+        VALUES (?,?,?,?,?,?,?,?,?)
+    """,(log_id,log_type,title,content,page_name,status,datetime.now().isoformat(),action_plan,verification_notes))
     conn.commit()
     conn.close()
+    _safe_cache_clear()
     sync_obsidian()
+
+# 開発フィードバック/エラーログのステータス更新
+def update_developer_log_status(log_id:str,status:str):
+    conn=get_connection()
+    cursor=conn.cursor()
+    cursor.execute("UPDATE developer_logs SET status=? WHERE log_id=?",(status,log_id))
+    conn.commit()
+    conn.close()
+    _safe_cache_clear()
+    sync_obsidian()
+
+# 開発フィードバックの改善計画・検証メモの更新
+def update_developer_log_plan(log_id:str,action_plan:str,verification_notes:str,status:str=None):
+    conn=get_connection()
+    cursor=conn.cursor()
+    if status:
+        cursor.execute("UPDATE developer_logs SET action_plan=?,verification_notes=?,status=? WHERE log_id=?",(action_plan,verification_notes,status,log_id))
+    else:
+        cursor.execute("UPDATE developer_logs SET action_plan=?,verification_notes=? WHERE log_id=?",(action_plan,verification_notes,log_id))
+    conn.commit()
+    conn.close()
+    _safe_cache_clear()
+    sync_obsidian()
+
+# 開発フィードバック/エラーログの全件取得
+@_safe_cache_data
+def fetch_all_developer_logs()->List[Dict]:
+    conn=get_connection()
+    cursor=conn.cursor()
+    cursor.execute("SELECT * FROM developer_logs ORDER BY created_at DESC")
+    rows=cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 # 文献の更新
 def update_literature(lit:Literature):
@@ -394,17 +477,17 @@ def update_literature(lit:Literature):
     now=datetime.now().isoformat()
     cursor.execute("""
         UPDATE literatures SET
-            literature_type=?,title=?,authors=?,venue=?,publication_year=?,volume=?,parameters=?,
-            doi=?,pdf_file_path=?,remarks=?,updated_at=?
+            literature_type=?,title=?,authors=?,venue=?,publication_year=?,volume=?,pages=?,parameters=?,
+            doi=?,pdf_file_path=?,remarks=?,is_draft=?,updated_at=?
         WHERE literature_id=?
     """,(
-        lit.literature_type,lit.title,lit.authors,lit.venue,lit.publication_year,lit.volume,json.dumps(lit.parameters),
-        lit.doi,lit.pdf_file_path,lit.remarks,now,lit.literature_id
+        lit.literature_type,lit.title,lit.authors,lit.venue,lit.publication_year,lit.volume,lit.pages,json.dumps(lit.parameters),
+        lit.doi,lit.pdf_file_path,lit.remarks,1 if lit.is_draft else 0,now,lit.literature_id
     ))
     extract_and_save_tags("Literature",lit.literature_id,lit.remarks,cursor)
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 # イベントの更新
@@ -414,10 +497,10 @@ def update_event(evt:Event):
     now=datetime.now().isoformat()
     cursor.execute("""
         UPDATE events SET
-            project_id=?,target_material=?,event_type=?,motivation=?,parameters=?,remarks=?,updated_at=?
+            project_id=?,target_material=?,event_type=?,motivation=?,parameters=?,remarks=?,is_draft=?,updated_at=?
         WHERE event_id=?
     """,(
-        evt.project_id,evt.target_material,evt.event_type,evt.motivation,json.dumps(evt.parameters),evt.remarks,now,evt.event_id
+        evt.project_id,evt.target_material,evt.event_type,evt.motivation,json.dumps(evt.parameters),evt.remarks,1 if evt.is_draft else 0,now,evt.event_id
     ))
     cursor.execute("DELETE FROM event_inputs WHERE event_id=?",(evt.event_id,))
     for sid in evt.input_sample_ids:
@@ -432,7 +515,7 @@ def update_event(evt:Event):
     extract_and_save_tags("Event",evt.event_id,evt.motivation,cursor)
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 # サンプルの更新
@@ -442,15 +525,15 @@ def update_sample(smp:Sample):
     now=datetime.now().isoformat()
     cursor.execute("""
         UPDATE samples SET
-            source_event_id=?,human_id=?,form=?,parameters=?,location=?,remarks=?,updated_at=?
+            source_event_id=?,human_id=?,form=?,parameters=?,location=?,remarks=?,is_draft=?,updated_at=?
         WHERE sample_id=?
     """,(
-        smp.source_event_id,smp.human_id,smp.form,json.dumps(smp.parameters),smp.location,smp.remarks,now,smp.sample_id
+        smp.source_event_id,smp.human_id,smp.form,json.dumps(smp.parameters),smp.location,smp.remarks,1 if smp.is_draft else 0,now,smp.sample_id
     ))
     extract_and_save_tags("Sample",smp.sample_id,smp.remarks,cursor)
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 # 測定データの更新
@@ -462,17 +545,17 @@ def update_measurement(msr:Measurement):
         UPDATE measurements SET
             sample_id=?,measurement_type=?,conditions=?,raw_data_path=?,
             processed_data_path=?,extracted_features=?,operator=?,
-            measured_at=?,remarks=?,updated_at=?
+            measured_at=?,remarks=?,is_draft=?,updated_at=?
         WHERE measurement_id=?
     """,(
         msr.sample_id,msr.measurement_type,json.dumps(msr.conditions),
         msr.raw_data_path,msr.processed_data_path,json.dumps(msr.extracted_features),
-        msr.operator,msr.measured_at.isoformat(),msr.remarks,now,msr.measurement_id
+        msr.operator,msr.measured_at.isoformat(),msr.remarks,1 if msr.is_draft else 0,now,msr.measurement_id
     ))
     extract_and_save_tags("Measurement",msr.measurement_id,msr.remarks,cursor)
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 # 比較図の更新
@@ -493,7 +576,7 @@ def update_comparison_figure(fig:ComparisonFigure):
     extract_and_save_tags("ComparisonFigure",fig.figure_id,fig.remarks,cursor)
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 # 物質メタデータの更新
@@ -503,10 +586,10 @@ def update_material(mat:Material):
     now=datetime.now().isoformat()
     cursor.execute("""
         UPDATE materials SET
-            name=?,properties=?,reference_literature_id=?,cif_file_path=?,remarks=?,updated_at=?
+            name=?,properties=?,reference_literature_id=?,cif_file_path=?,remarks=?,is_draft=?,updated_at=?
         WHERE material_id=?
     """,(
-        mat.name,json.dumps(mat.properties),mat.reference_literature_id,mat.cif_file_path,mat.remarks,now,mat.material_id
+        mat.name,json.dumps(mat.properties),mat.reference_literature_id,mat.cif_file_path,mat.remarks,1 if mat.is_draft else 0,now,mat.material_id
     ))
     cursor.execute("DELETE FROM material_relations WHERE material_id=?",(mat.material_id,))
     for imid in mat.impurity_material_ids:
@@ -516,7 +599,7 @@ def update_material(mat:Material):
     extract_and_save_tags("Material",mat.material_id,mat.remarks,cursor)
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 # タスクの更新
@@ -526,25 +609,18 @@ def update_task(tsk:Task):
     now=datetime.now().isoformat()
     cursor.execute("""
         UPDATE tasks SET
-            title=?,status=?,related_entity_type=?,related_entity_id=?,due_date=?,remarks=?,updated_at=?
+            parent_task_id=?,title=?,status=?,related_entity_type=?,related_entity_id=?,due_date=?,remarks=?,updated_at=?
         WHERE task_id=?
     """,(
-        tsk.title,tsk.status,tsk.related_entity_type,tsk.related_entity_id,tsk.due_date,tsk.remarks,now,tsk.task_id
+        tsk.parent_task_id,tsk.title,tsk.status,tsk.related_entity_type,tsk.related_entity_id,tsk.due_date,tsk.remarks,now,tsk.task_id
     ))
     extract_and_save_tags("Task",tsk.task_id,tsk.remarks,cursor)
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
-# 開発フィードバック/エラーログのステータス更新
-def update_developer_log_status(log_id:str,status:str):
-    conn=get_connection()
-    cursor=conn.cursor()
-    cursor.execute("UPDATE developer_logs SET status=? WHERE log_id=?",(status,log_id))
-    conn.commit()
-    conn.close()
-    sync_obsidian()
+
 
 # 削除オペレーション
 def delete_literature(lid:str):
@@ -553,7 +629,7 @@ def delete_literature(lid:str):
     cursor.execute("DELETE FROM literatures WHERE literature_id=?",(lid,))
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 def delete_event(eid:str):
@@ -562,7 +638,7 @@ def delete_event(eid:str):
     cursor.execute("DELETE FROM events WHERE event_id=?",(eid,))
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 def delete_sample(sid:str):
@@ -571,7 +647,7 @@ def delete_sample(sid:str):
     cursor.execute("DELETE FROM samples WHERE sample_id=?",(sid,))
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 def delete_measurement(mid:str):
@@ -580,7 +656,7 @@ def delete_measurement(mid:str):
     cursor.execute("DELETE FROM measurements WHERE measurement_id=?",(mid,))
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 def delete_comparison_figure(fid:str):
@@ -589,7 +665,7 @@ def delete_comparison_figure(fid:str):
     cursor.execute("DELETE FROM comparison_figures WHERE figure_id=?",(fid,))
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 def delete_material(mid:str):
@@ -598,7 +674,7 @@ def delete_material(mid:str):
     cursor.execute("DELETE FROM materials WHERE material_id=?",(mid,))
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 def delete_task(tid:str):
@@ -607,7 +683,7 @@ def delete_task(tid:str):
     cursor.execute("DELETE FROM tasks WHERE task_id=?",(tid,))
     conn.commit()
     conn.close()
-    st.cache_data.clear()
+    _safe_cache_clear()
     sync_obsidian()
 
 def delete_developer_log(log_id:str):
@@ -618,139 +694,212 @@ def delete_developer_log(log_id:str):
     conn.close()
     sync_obsidian()
 
-# データ取得処理（st.cache_dataを適用）
-@st.cache_data
+def clear_resolved_developer_logs():
+    conn=get_connection()
+    cursor=conn.cursor()
+    cursor.execute("DELETE FROM developer_logs WHERE status='Resolved'")
+    conn.commit()
+    conn.close()
+    _safe_cache_clear()
+
+def _get_tags_map_for_type(cursor,entity_type:str)->Dict[str,List[str]]:
+    cursor.execute("SELECT et.entity_id,t.tag_name FROM tags t JOIN entity_tags et ON t.tag_id=et.tag_id WHERE et.entity_type=?",(entity_type,))
+    tags_map={}
+    for eid,tname in cursor.fetchall():
+        tags_map.setdefault(eid,[]).append(tname)
+    return tags_map
+
+# データ取得処理（一括取得とst.cache_dataにより超高速化）
+@_safe_cache_data
 def fetch_all_literatures()->List[Dict]:
     conn=get_connection()
     cursor=conn.cursor()
     cursor.execute("SELECT * FROM literatures ORDER BY COALESCE(updated_at,created_at) DESC")
     rows=cursor.fetchall()
+    tags_map=_get_tags_map_for_type(cursor,"Literature")
     res=[]
     for row in rows:
         d=dict(row)
-        lit_id=d["literature_id"]
-        cursor.execute("SELECT t.tag_name FROM tags t JOIN entity_tags et ON t.tag_id=et.tag_id WHERE et.entity_type='Literature' AND et.entity_id=?",(lit_id,))
-        d["tags"]=[r[0] for r in cursor.fetchall()]
+        d["tags"]=tags_map.get(d["literature_id"],[])
         res.append(d)
     conn.close()
     return res
 
-@st.cache_data
+@_safe_cache_data
 def fetch_all_events()->List[Dict]:
     conn=get_connection()
     cursor=conn.cursor()
     cursor.execute("SELECT * FROM events ORDER BY COALESCE(updated_at,created_at) DESC")
     rows=cursor.fetchall()
+
+    cursor.execute("SELECT event_id,sample_id FROM event_inputs")
+    inputs_map={}
+    for eid,sid in cursor.fetchall():
+        inputs_map.setdefault(eid,[]).append(sid)
+
+    cursor.execute("SELECT event_id,ref_event_id FROM event_references")
+    refs_map={}
+    for eid,reid in cursor.fetchall():
+        refs_map.setdefault(eid,[]).append(reid)
+
+    cursor.execute("SELECT event_id,literature_id FROM event_literatures")
+    lits_map={}
+    for eid,lid in cursor.fetchall():
+        lits_map.setdefault(eid,[]).append(lid)
+
+    tags_map=_get_tags_map_for_type(cursor,"Event")
+
     res=[]
     for row in rows:
         d=dict(row)
         eid=d["event_id"]
-        cursor.execute("SELECT sample_id FROM event_inputs WHERE event_id=?",(eid,))
-        d["input_sample_ids"]=[r[0] for r in cursor.fetchall()]
+        d["input_sample_ids"]=inputs_map.get(eid,[])
         d["input_sample_id"]=d["input_sample_ids"][0] if d["input_sample_ids"] else None
-        cursor.execute("SELECT ref_event_id FROM event_references WHERE event_id=?",(eid,))
-        d["reference_event_ids"]=[r[0] for r in cursor.fetchall()]
+        d["reference_event_ids"]=refs_map.get(eid,[])
         d["reference_event_id"]=d["reference_event_ids"][0] if d["reference_event_ids"] else None
-        cursor.execute("SELECT literature_id FROM event_literatures WHERE event_id=?",(eid,))
-        d["reference_literature_ids"]=[r[0] for r in cursor.fetchall()]
+        d["reference_literature_ids"]=lits_map.get(eid,[])
         d["reference_literature_id"]=d["reference_literature_ids"][0] if d["reference_literature_ids"] else None
-        cursor.execute("SELECT t.tag_name FROM tags t JOIN entity_tags et ON t.tag_id=et.tag_id WHERE et.entity_type='Event' AND et.entity_id=?",(eid,))
-        d["tags"]=[r[0] for r in cursor.fetchall()]
+        d["tags"]=tags_map.get(eid,[])
         res.append(d)
     conn.close()
     return res
 
-@st.cache_data
+@_safe_cache_data
 def fetch_all_samples()->List[Dict]:
     conn=get_connection()
     cursor=conn.cursor()
     cursor.execute("SELECT * FROM samples ORDER BY COALESCE(updated_at,created_at) DESC")
     rows=cursor.fetchall()
+    tags_map=_get_tags_map_for_type(cursor,"Sample")
     res=[]
     for row in rows:
         d=dict(row)
-        sid=d["sample_id"]
-        cursor.execute("SELECT t.tag_name FROM tags t JOIN entity_tags et ON t.tag_id=et.tag_id WHERE et.entity_type='Sample' AND et.entity_id=?",(sid,))
-        d["tags"]=[r[0] for r in cursor.fetchall()]
+        d["tags"]=tags_map.get(d["sample_id"],[])
         res.append(d)
     conn.close()
     return res
 
-@st.cache_data
+@_safe_cache_data
 def fetch_all_measurements()->List[Dict]:
     conn=get_connection()
     cursor=conn.cursor()
     cursor.execute("SELECT * FROM measurements ORDER BY COALESCE(updated_at,created_at) DESC")
     rows=cursor.fetchall()
+    tags_map=_get_tags_map_for_type(cursor,"Measurement")
     res=[]
     for row in rows:
         d=dict(row)
-        mid=d["measurement_id"]
-        cursor.execute("SELECT t.tag_name FROM tags t JOIN entity_tags et ON t.tag_id=et.tag_id WHERE et.entity_type='Measurement' AND et.entity_id=?",(mid,))
-        d["tags"]=[r[0] for r in cursor.fetchall()]
+        d["tags"]=tags_map.get(d["measurement_id"],[])
         res.append(d)
     conn.close()
     return res
 
-@st.cache_data
+@_safe_cache_data
 def fetch_all_comparison_figures()->List[Dict]:
     conn=get_connection()
     cursor=conn.cursor()
     cursor.execute("SELECT * FROM comparison_figures ORDER BY COALESCE(updated_at,created_at) DESC")
     rows=cursor.fetchall()
+
+    cursor.execute("SELECT figure_id,measurement_id FROM comparison_measurements")
+    meas_map={}
+    for fid,mid in cursor.fetchall():
+        meas_map.setdefault(fid,[]).append(mid)
+
+    tags_map=_get_tags_map_for_type(cursor,"ComparisonFigure")
+
     res=[]
     for row in rows:
         d=dict(row)
         fid=d["figure_id"]
-        cursor.execute("SELECT measurement_id FROM comparison_measurements WHERE figure_id=?",(fid,))
-        d["measurement_ids"]=[r[0] for r in cursor.fetchall()]
-        cursor.execute("SELECT t.tag_name FROM tags t JOIN entity_tags et ON t.tag_id=et.tag_id WHERE et.entity_type='ComparisonFigure' AND et.entity_id=?",(fid,))
-        d["tags"]=[r[0] for r in cursor.fetchall()]
+        d["measurement_ids"]=meas_map.get(fid,[])
+        d["tags"]=tags_map.get(fid,[])
         res.append(d)
     conn.close()
     return res
 
-@st.cache_data
+@_safe_cache_data
 def fetch_all_materials()->List[Dict]:
     conn=get_connection()
     cursor=conn.cursor()
     cursor.execute("SELECT * FROM materials ORDER BY COALESCE(updated_at,created_at) DESC")
     rows=cursor.fetchall()
+
+    cursor.execute("SELECT material_id,related_material_id FROM material_relations WHERE relation_type='impurity'")
+    imp_map={}
+    for mid,rmid in cursor.fetchall():
+        imp_map.setdefault(mid,[]).append(rmid)
+
+    cursor.execute("SELECT material_id,related_material_id FROM material_relations WHERE relation_type='polymorph'")
+    poly_map={}
+    for mid,rmid in cursor.fetchall():
+        poly_map.setdefault(mid,[]).append(rmid)
+
+    tags_map=_get_tags_map_for_type(cursor,"Material")
+
     res=[]
     for row in rows:
         d=dict(row)
         mid=d["material_id"]
-        cursor.execute("SELECT related_material_id FROM material_relations WHERE material_id=? AND relation_type='impurity'",(mid,))
-        d["impurity_material_ids"]=[r[0] for r in cursor.fetchall()]
-        cursor.execute("SELECT related_material_id FROM material_relations WHERE material_id=? AND relation_type='polymorph'",(mid,))
-        d["polymorph_material_ids"]=[r[0] for r in cursor.fetchall()]
-        cursor.execute("SELECT t.tag_name FROM tags t JOIN entity_tags et ON t.tag_id=et.tag_id WHERE et.entity_type='Material' AND et.entity_id=?",(mid,))
-        d["tags"]=[r[0] for r in cursor.fetchall()]
+        d["impurity_material_ids"]=imp_map.get(mid,[])
+        d["polymorph_material_ids"]=poly_map.get(mid,[])
+        d["tags"]=tags_map.get(mid,[])
         res.append(d)
     conn.close()
     return res
 
-@st.cache_data
+@_safe_cache_data
 def fetch_all_tasks()->List[Dict]:
     conn=get_connection()
     cursor=conn.cursor()
     cursor.execute("SELECT * FROM tasks ORDER BY COALESCE(updated_at,created_at) DESC")
     rows=cursor.fetchall()
+    tags_map=_get_tags_map_for_type(cursor,"Task")
     res=[]
     for row in rows:
         d=dict(row)
-        tid=d["task_id"]
-        cursor.execute("SELECT t.tag_name FROM tags t JOIN entity_tags et ON t.tag_id=et.tag_id WHERE et.entity_type='Task' AND et.entity_id=?",(tid,))
-        d["tags"]=[r[0] for r in cursor.fetchall()]
+        d["tags"]=tags_map.get(d["task_id"],[])
         res.append(d)
     conn.close()
     return res
 
-# 開発フィードバック/エラーログの全件取得
-def fetch_all_developer_logs()->List[Dict]:
+
+
+# 実験データを含まないフィードバック専用JSONエクスポート
+def export_developer_logs_json()->str:
+    logs=fetch_all_developer_logs()
+    export_payload={
+        "app_name":"MatGraphia",
+        "data_type":"developer_feedback_only",
+        "contains_experimental_data":False,
+        "exported_at":datetime.now().isoformat(),
+        "logs":logs
+    }
+    return json.dumps(export_payload,ensure_ascii=False,indent=2)
+
+# フィードバックJSONのインポート（重複スキップ）
+def import_developer_logs_json(json_str:str)->int:
+    payload=json.loads(json_str)
+    logs=payload.get("logs",[])
+    if not isinstance(logs,list):return 0
     conn=get_connection()
     cursor=conn.cursor()
-    cursor.execute("SELECT * FROM developer_logs ORDER BY created_at DESC")
-    rows=cursor.fetchall()
+    imported_count=0
+    for l in logs:
+        log_id,log_type=l.get("log_id"),l.get("log_type","Feedback")
+        title,content=l.get("title",""),l.get("content","")
+        page_name,status=l.get("page_name","外部インポート"),l.get("status","Open")
+        created_at=l.get("created_at",datetime.now().isoformat())
+        action_plan,verification_notes=l.get("action_plan",""),l.get("verification_notes","")
+        if not log_id or not title:continue
+        cursor.execute("SELECT 1 FROM developer_logs WHERE log_id=?",(log_id,))
+        if cursor.fetchone():continue
+        cursor.execute("""
+        INSERT INTO developer_logs (log_id,log_type,title,content,page_name,status,created_at,action_plan,verification_notes)
+        VALUES (?,?,?,?,?,?,?,?,?)
+        """,(log_id,log_type,title,content,page_name,status,created_at,action_plan,verification_notes))
+        imported_count+=1
+    conn.commit()
     conn.close()
-    return [dict(row) for row in rows]
+    return imported_count
+

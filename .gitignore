@@ -2,6 +2,9 @@
 data/
 __pycache__/
 obsidian_vault/
+.pytest_cache/
 
-# 特定の拡張子を除外
+# 特定の拡張子・ファイルを除外
 *.bat
+*.tmp.txt
+scratch_open_logs.json

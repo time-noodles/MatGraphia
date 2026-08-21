@@ -4,8 +4,13 @@ import database as db
 import plugin_manager as pm
 from ui.forms import render_dynamic_form
 from ui.helpers import (
-    _json_or_raw,get_sample_ancestry,
-    build_sample_label,build_literature_label,build_event_label,log_errors
+    _json_or_raw,
+    build_event_label,
+    build_literature_label,
+    build_sample_label,
+    calc_molecular_weight,
+    get_atomic_weight,
+    log_errors,
 )
 from ui.validators import is_duplicate_event
 
@@ -22,8 +27,8 @@ def render():
     literatures=db.fetch_all_literatures()
     events=db.fetch_all_events()
     events_dict={e["event_id"]:e for e in events}
-    with st.expander("データ絞り込み条件 (検索)"):
-        search_q=st.text_input("サンプル名や物質名で絞り込み")
+    with st.expander("データ絞り込み条件 (派生元キーワード検索)",expanded=True):
+        search_q=st.text_input("サンプル名・物質名・文献名等のキーワードで候補を絞り込み",key="evt_search_q")
     sample_options={"選択なし (None)":None}
     for s in samples:
         label=build_sample_label(s,events_dict=events_dict,samples_list=samples)
@@ -31,10 +36,14 @@ def render():
         sample_options[label]=s["sample_id"]
     lit_options={"選択なし (None)":None}
     for l in literatures:
-        lit_options[build_literature_label(l)]=l["literature_id"]
+        label=build_literature_label(l)
+        if search_q and search_q.lower() not in label.lower():continue
+        lit_options[label]=l["literature_id"]
     evt_options={"選択なし (None)":None}
     for e in events:
-        evt_options[build_event_label(e)]=e["event_id"]
+        label=build_event_label(e)
+        if search_q and search_q.lower() not in label.lower():continue
+        evt_options[label]=e["event_id"]
     evt_type_options=list(EVENT_SCHEMAS.keys()) if EVENT_SCHEMAS else ["Solid-State","CVT"]
     all_projects=sorted(list(set(e["project_id"] for e in events if e["project_id"])))
     all_materials=sorted(list(set(e["target_material"] for e in events if e["target_material"])))
@@ -75,12 +84,20 @@ def render():
         with col_mat:
             mat_sel=st.selectbox("対象物質 (必須)",["(新規作成)"]+all_materials,key="evt_mat_sel")
             target_material=st.text_input("新規対象物質名を入力",value="Bi2Te3",key="evt_target_material_new") if mat_sel=="(新規作成)" else mat_sel
+        
+        # 分子量 (M.W. - Molecular Weight) のリアルタイム自動計算・表示
+        mw_val=calc_molecular_weight(target_material)
+        if mw_val:
+            st.info(f"⚖️ 対象物質 **【 {target_material} 】** の分子量 (M.W.): **{mw_val:.3f} g/mol**")
+        elif target_material:
+            st.caption(f"対象物質: {target_material}")
+            
         event_type=st.selectbox("イベントタイプ",evt_type_options,key="evt_event_type")
         st.write("---")
-        st.write("**派生元 (サンプル・イベント・文献は複数選択可 / いずれか1件以上必須)**")
+        st.write("**派生元 (サンプル・イベント・文献は複数選択可 / 検索で絞り込み可)**")
         col1,col2=st.columns(2)
         with col1:
-            input_samples=st.multiselect("元サンプル (検索は上部で可能)",list(sample_options.keys()),key="evt_input_samples")
+            input_samples=st.multiselect("元サンプル",list(sample_options.keys()),key="evt_input_samples")
             ref_events=st.multiselect("参照元イベント",list(evt_options.keys()),key="evt_ref_events")
         with col2:
             ref_lits=st.multiselect("ベース文献",list(lit_options.keys()),key="evt_ref_lits")
@@ -89,42 +106,81 @@ def render():
         prefill_params=st.session_state.get("evt_prefill_params",{}) if isinstance(st.session_state.get("evt_prefill_params",{}),dict) else {}
         form_seed=int(st.session_state.get("evt_form_seed",0))
         parameters=render_dynamic_form(schema,key_prefix=f"events_{form_seed}",initial_data=prefill_params)
+        
+        # 秤量・原料フォーム内の元素 M.W. (原子量 g/mol) リアルタイム自動計算・表示
+        elem_mw_info=[]
+        if isinstance(parameters,dict):
+            for k,v in parameters.items():
+                if isinstance(v,str) and v.strip() and len(v.strip())<=3:
+                    atomic_w=get_atomic_weight(v.strip())
+                    if atomic_w:
+                        elem_mw_info.append(f"**{v.strip()}**: {atomic_w:.3f} g/mol")
+        if elem_mw_info:
+            st.info("⚖️ **【秤量・配分元素のリアルタイム M.W. (原子量)】** " + " &nbsp;|&nbsp; ".join(elem_mw_info))
+            
         remarks=st.text_area("備考",key="evt_remarks")
-        if st.button("イベントを登録する"):
-            if not project_id or not target_material or not motivation or not event_type:
-                st.error("【必須エラー】 プロジェクトID、対象物質、イベントタイプ、動機(Motivation) はすべて必須です。")
-                return
-            selected_sample_ids=[sample_options[k] for k in input_samples if sample_options.get(k)]
-            selected_event_ids=[evt_options[k] for k in ref_events if evt_options.get(k)]
-            selected_lit_ids=[lit_options[k] for k in ref_lits if lit_options.get(k)]
-            if not selected_sample_ids and not selected_event_ids and not selected_lit_ids:
-                st.error("【必須エラー】 派生元となる「元サンプル」「参照元イベント」「ベース文献」のいずれか1つ以上は必ず選択してください。")
-                return
-            new_evt_dict={
-                "project_id":project_id,
-                "target_material":target_material,
-                "event_type":event_type,
-                "input_sample_ids":selected_sample_ids,
-                "reference_event_ids":selected_event_ids,
-                "reference_literature_ids":selected_lit_ids,
-                "parameters":parameters,
-            }
-            if is_duplicate_event(new_evt_dict,events):
-                st.error("【重複エラー】 全く同じ条件（プロジェクト, 物質, 手法, および表パラメータ等）のイベントが既に登録されています！")
-                return
-            try:
-                evt=Event(
-                    project_id=project_id,
-                    target_material=target_material,
-                    event_type=event_type,
-                    input_sample_ids=selected_sample_ids,
-                    reference_event_ids=selected_event_ids,
-                    reference_literature_ids=selected_lit_ids,
-                    motivation=motivation,
-                    parameters=parameters,
-                    remarks=remarks
-                )
-                db.insert_event(evt)
-                st.success(f"イベントを登録しました！ (ID: {evt.event_id})")
-            except Exception as e:
-                st.error(f"登録時にエラーが発生しました: {e}")
+        st.markdown("<div class='sticky-btn-bar'>",unsafe_allow_html=True)
+        btn_col1,btn_col2=st.columns(2)
+        with btn_col1:
+            if st.button("イベントを登録する (本登録)",type="primary"):
+                if not project_id or not target_material or not motivation or not event_type:
+                    st.error("【必須エラー】 プロジェクトID、対象物質、イベントタイプ、動機(Motivation) はすべて必須です。")
+                else:
+                    selected_sample_ids=[sample_options[k] for k in input_samples if sample_options.get(k)]
+                    selected_event_ids=[evt_options[k] for k in ref_events if evt_options.get(k)]
+                    selected_lit_ids=[lit_options[k] for k in ref_lits if lit_options.get(k)]
+                    if not selected_sample_ids and not selected_event_ids and not selected_lit_ids:
+                        st.error("【必須エラー】 派生元となる「元サンプル」「参照元イベント」「ベース文献」のいずれか1つ以上は必ず選択してください。")
+                    else:
+                        new_evt_dict={
+                            "project_id":project_id,
+                            "target_material":target_material,
+                            "event_type":event_type,
+                            "input_sample_ids":selected_sample_ids,
+                            "reference_event_ids":selected_event_ids,
+                            "reference_literature_ids":selected_lit_ids,
+                            "parameters":parameters,
+                        }
+                        if is_duplicate_event(new_evt_dict,events):
+                            st.error("【重複エラー】 全く同じ条件のイベントが既に登録されています！")
+                        else:
+                            try:
+                                evt=Event(
+                                    project_id=project_id,
+                                    target_material=target_material,
+                                    event_type=event_type,
+                                    input_sample_ids=selected_sample_ids,
+                                    reference_event_ids=selected_event_ids,
+                                    reference_literature_ids=selected_lit_ids,
+                                    motivation=motivation,
+                                    parameters=parameters,
+                                    remarks=remarks,
+                                    is_draft=False
+                                )
+                                db.insert_event(evt)
+                                st.success(f"イベントを本登録しました！ (ID: {evt.event_id})")
+                            except Exception as e:
+                                st.error(f"登録時にエラーが発生しました: {e}")
+        with btn_col2:
+            if st.button("下書き（仮登録）する"):
+                try:
+                    selected_sample_ids=[sample_options[k] for k in input_samples if sample_options.get(k)]
+                    selected_event_ids=[evt_options[k] for k in ref_events if evt_options.get(k)]
+                    selected_lit_ids=[lit_options[k] for k in ref_lits if lit_options.get(k)]
+                    evt=Event(
+                        project_id=project_id or "Draft_Project",
+                        target_material=target_material or "Draft_Material",
+                        event_type=event_type or "Solid-State",
+                        input_sample_ids=selected_sample_ids,
+                        reference_event_ids=selected_event_ids,
+                        reference_literature_ids=selected_lit_ids,
+                        motivation=motivation or "(下書き)",
+                        parameters=parameters or {},
+                        remarks=remarks or "",
+                        is_draft=True
+                    )
+                    db.insert_event(evt)
+                    st.success(f"イベントを下書き（仮登録）しました！データ管理画面で後から補完・本登録できます。(ID: {evt.event_id})")
+                except Exception as e:
+                    st.error(f"下書き登録時にエラーが発生しました: {e}")
+        st.markdown("</div>",unsafe_allow_html=True)

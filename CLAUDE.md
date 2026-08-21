@@ -6,19 +6,19 @@
 
 ## 1. 実行・開発コマンド
 
-すべてのコマンドは、仮想環境 `py-antigravity`（Anaconda環境）で実行する必要があります。
+すべてのコマンドは、仮想環境 `py312` (`/home/kotoyumin/miniconda3/envs/py312/bin/python`) で実行します。
 
 * **アプリケーションの起動**
   ```bash
-  conda run -n py-antigravity streamlit run app.py
+  /home/kotoyumin/miniconda3/envs/py312/bin/streamlit run app.py
   ```
 * **データベースの初期化・再構築 (既存データ破棄)**
   ```bash
-  conda run -n py-antigravity python -c "import database;database.init_db()"
+  /home/kotoyumin/miniconda3/envs/py312/bin/python -c "import database;database.init_db()"
   ```
-* **テストの実行**
+* **テストの実行 (pytest)**
   ```bash
-  conda run -n py-antigravity python test_crystal.py
+  /home/kotoyumin/miniconda3/envs/py312/bin/pytest tests/ -v
   ```
 
 ---
@@ -39,7 +39,7 @@
 
 このプロジェクトの開発においては、以下のルールを徹底して守る必要があります。
 
-* **仮想環境の使用**: 必ず `py-antigravity` 環境を使用すること。
+* **仮想環境の使用**: 必ず `py312` 環境を使用すること。
 * **スペースの排除**: 不必要なスペースは徹底して排除する（`=`の両端、`,`や`+`などの記号のあと等）。
   * 良い例: `a=1` / `func(a,b)` / `x,y=2,3`
   * 悪い例: `a = 1` / `func(a, b)` / `x, y = 2, 3`

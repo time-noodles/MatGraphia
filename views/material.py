@@ -73,7 +73,7 @@ def render():
     for l in literatures:
         lit_options[build_literature_label(l)]=l["literature_id"]
     with st.container():
-        name=st.text_input("物質名 (必須 / 例: CuCrS2)",value="")
+        name=st.text_input("物質名 (必須 / 例: CuCrS2)",value="",key="draft_mat_name")
         mat_options={}
         for m in materials:
             mat_options[f"{m['name']} #{m['material_id'][:4]}"]=m["material_id"]
@@ -84,9 +84,9 @@ def render():
         st.markdown("**【関連物質リンク（オプション）】**")
         selected_impurities=st.multiselect("不純物として関連づける物質（オプション）",list(mat_options.keys()),key="mat_impurity_links")
         selected_polymorphs=st.multiselect("多型として関連づける物質（オプション）",list(mat_options.keys()),key="mat_polymorph_links")
-        ref_lit=st.selectbox("参照文献",list(lit_options.keys()))
-        remarks=st.text_area("備考")
-        uploaded_cif=st.file_uploader("CIFファイル(任意)のアップロード",type=["cif","txt"])
+        ref_lit=st.selectbox("参照文献",list(lit_options.keys()),key="draft_mat_reflit")
+        remarks=st.text_area("備考",key="draft_mat_remarks")
+        uploaded_cif=st.file_uploader("CIFファイル(任意)のアップロード",type=["cif","txt"],key="draft_mat_cif")
         cif_bytes_raw=uploaded_cif.getvalue() if uploaded_cif is not None else None
         cif_bytes=_normalize_cif_fraction_tokens(cif_bytes_raw) if cif_bytes_raw is not None else None
         if uploaded_cif is not None:
@@ -118,13 +118,13 @@ def render():
                     st.markdown("**Summary**")
                     summary=dict(graph_payload["summary"])
                     atom_counts=summary.pop("atom_counts",{})
-                    st.dataframe(pd.DataFrame([summary]),hide_index=True,use_container_width=True)
+                    st.dataframe(pd.DataFrame([summary]),hide_index=True)
                     if isinstance(atom_counts,dict) and atom_counts:
                         counts_df=pd.DataFrame(
                             [{"element":k,"count_in_unit_cell":v} for k,v in sorted(atom_counts.items())]
                         )
                         st.markdown("**Atom Counts in Unit Cell**")
-                        st.dataframe(counts_df,hide_index=True,use_container_width=True)
+                        st.dataframe(counts_df,hide_index=True)
                     with st.expander("StructureGraph raw output"):
                         st.text(str(graph_obj))
         xrd_plugin=_load_measurement_plugin("XRD")
@@ -184,7 +184,6 @@ def render():
                         st.image(
                             png_bytes,
                             caption=f"XRD simulated pattern ({sim_result.get('mode')})",
-                            use_container_width=True,
                         )
                     if plot_err:
                         st.warning(plot_err)
@@ -212,52 +211,78 @@ def render():
                 st.error(f"XRDプレビューの生成に失敗しました: {e}")
         elif uploaded_cif is not None and not xrd_plugin:
             st.warning("XRDプラグインが読み込めないため、CIFプレビューは利用できません。")
-        if st.button("物質情報を登録する"):
-            if not name:
-                st.error("物質名は必須です。")
-                return
-            properties={row["Property"]:row["Value"] for _,row in edited_prop_df.iterrows() if row["Property"]}
-            impurity_ids=[mat_options[k] for k in selected_impurities if mat_options.get(k)]
-            polymorph_ids=[mat_options[k] for k in selected_polymorphs if mat_options.get(k)]
-            try:
-                mat=Material(
-                    name=name,
-                    properties=properties,
-                    reference_literature_id=lit_options[ref_lit],
-                    impurity_material_ids=impurity_ids,
-                    polymorph_material_ids=polymorph_ids,
-                    remarks=remarks
-                )
-                if uploaded_cif:
-                    cif_path=fm.save_material_file(mat.material_id,uploaded_cif.name,cif_bytes if cif_bytes is not None else uploaded_cif.getvalue())
-                    mat.cif_file_path=cif_path
-                    xrd_pl=_load_measurement_plugin("XRD")
-                    if xrd_pl and hasattr(xrd_pl,"simulate_xrd_for_cif_bytes"):
-                        try:
-                            powder_conditions={
-                                "simulation_mode":"Powder",
-                                "target":"CuKa",
-                                "two_theta_min":5.0,
-                                "two_theta_max":90.0,
-                                "profile_step":0.02,
-                                "peak_width":0.15,
-                            }
-                            sim_res,sim_e=xrd_pl.simulate_xrd_for_cif_bytes(
-                                cif_bytes=cif_bytes if cif_bytes is not None else uploaded_cif.getvalue(),
-                                cif_name=uploaded_cif.name,
-                                conditions=powder_conditions,
-                                material_name=name or "Unknown",
-                            )
-                            if sim_res:
-                                mat.properties["xrd_simulation"]=sim_res
-                                st.info(f"XRDシミュレーションを事前計算・保存しました（Powder / peaks={sim_res.get('peak_count')}）。")
-                            elif sim_e:
-                                st.warning(f"XRDシミュレーションの事前計算をスキップしました: {sim_e}")
-                        except Exception as ex:
-                            st.warning(f"XRDシミュレーション事前計算に失敗しました: {ex}")
-                db.insert_material(mat)
-                st.success(f"物質情報を登録しました！ (ID: {mat.material_id})")
-                if mat.cif_file_path:
-                    st.info(f"CIFを保存しました: `{mat.cif_file_path}`")
-            except Exception as e:
-                st.error(f"登録時にエラーが発生しました: {e}")
+        col_m1,col_m2=st.columns(2)
+        with col_m1:
+            if st.button("物質情報を登録する (本登録)",type="primary"):
+                if not name:
+                    st.error("物質名は必須です。")
+                    return
+                properties={row["Property"]:row["Value"] for _,row in edited_prop_df.iterrows() if row["Property"]}
+                impurity_ids=[mat_options[k] for k in selected_impurities if mat_options.get(k)]
+                polymorph_ids=[mat_options[k] for k in selected_polymorphs if mat_options.get(k)]
+                try:
+                    ref_lit_id=lit_options.get(ref_lit) if isinstance(lit_options,dict) else None
+                    mat=Material(
+                        name=name,
+                        properties=properties,
+                        reference_literature_id=ref_lit_id,
+                        impurity_material_ids=impurity_ids,
+                        polymorph_material_ids=polymorph_ids,
+                        remarks=remarks or "",
+                        is_draft=False
+                    )
+                    if uploaded_cif:
+                        cif_path=fm.save_material_file(mat.material_id,uploaded_cif.name,cif_bytes if cif_bytes is not None else uploaded_cif.getvalue())
+                        mat.cif_file_path=cif_path
+                        xrd_pl=_load_measurement_plugin("XRD")
+                        if xrd_pl and hasattr(xrd_pl,"simulate_xrd_for_cif_bytes"):
+                            try:
+                                powder_conditions={
+                                    "simulation_mode":"Powder",
+                                    "target":"CuKa",
+                                    "two_theta_min":5.0,
+                                    "two_theta_max":90.0,
+                                    "profile_step":0.02,
+                                    "peak_width":0.15,
+                                }
+                                sim_res,sim_e=xrd_pl.simulate_xrd_for_cif_bytes(
+                                    cif_bytes=cif_bytes if cif_bytes is not None else uploaded_cif.getvalue(),
+                                    cif_name=uploaded_cif.name,
+                                    conditions=powder_conditions,
+                                    material_name=name or "Unknown",
+                                )
+                                if sim_res:
+                                    mat.properties["xrd_simulation"]=sim_res
+                                    st.info(f"XRDシミュレーションを事前計算・保存しました（Powder / peaks={sim_res.get('peak_count')}）。")
+                                elif sim_e:
+                                    st.warning(f"XRDシミュレーションの事前計算をスキップしました: {sim_e}")
+                            except Exception as ex:
+                                st.warning(f"XRDシミュレーション事前計算に失敗しました: {ex}")
+                    db.insert_material(mat)
+                    st.success(f"物質情報を本登録しました！ (ID: {mat.material_id})")
+                    if mat.cif_file_path:
+                        st.info(f"CIFを保存しました: `{mat.cif_file_path}`")
+                except Exception as e:
+                    st.error(f"登録時にエラーが発生しました: {e}")
+        with col_m2:
+            if st.button("下書き（仮登録）する"):
+                try:
+                    properties={row["Property"]:row["Value"] for _,row in edited_prop_df.iterrows() if row["Property"]}
+                    impurity_ids=[mat_options[k] for k in selected_impurities if mat_options.get(k)]
+                    polymorph_ids=[mat_options[k] for k in selected_polymorphs if mat_options.get(k)]
+                    mat=Material(
+                        name=name or "Draft_Material",
+                        properties=properties or {},
+                        reference_literature_id=lit_options.get(ref_lit),
+                        impurity_material_ids=impurity_ids,
+                        polymorph_material_ids=polymorph_ids,
+                        remarks=remarks or "",
+                        is_draft=True
+                    )
+                    if uploaded_cif:
+                        cif_path=fm.save_material_file(mat.material_id,uploaded_cif.name,cif_bytes if cif_bytes is not None else uploaded_cif.getvalue())
+                        mat.cif_file_path=cif_path
+                    db.insert_material(mat)
+                    st.success(f"物質情報を下書き（仮登録）しました！データ管理画面で後から補完・本登録できます。(ID: {mat.material_id})")
+                except Exception as e:
+                    st.error(f"下書き登録時にエラーが発生しました: {e}")
