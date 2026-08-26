@@ -108,38 +108,42 @@ def main():
     elif "nav_menu" not in st.session_state or st.session_state["nav_menu"] not in page_keys:
         st.session_state["nav_menu"]=page_keys[0]
 
-    # 3階層ナビゲーション構造:
-    # 1. 親タブ: 文字列セクション見出しによる分類
-    # 2. 小タブ: 各機能ページ
-    # 3. 孫タブ: 機能ページ配下のステップ (サイドバー内に描画)
+    # 親カテゴリ見出しラベル構造の構成
+    cat_definitions = {
+        "【 🏠 メイン ＆ 検索 】": [k for k in page_keys if "ホーム" in k or "検索" in k],
+        "【 📚 データ登録 】": [k for k in page_keys if "登録" in k and "仮登録" not in k],
+        "【 📊 解析 ＆ データ管理 】": [k for k in page_keys if "比較" in k or "仮登録・データ管理" in k],
+        "【 📋 ツール ＆ サポート 】": [k for k in page_keys if "タスク" in k or "フィードバック" in k]
+    }
 
-    selection = st.sidebar.radio("📋 ナビゲーションメニュー (小タブ)", page_keys, key="nav_menu")
+    # サイドバーに親カテゴリ見出しラベルと全小タブページを一覧描画
+    st.sidebar.markdown("### 🧭 機能一覧")
+    selection = st.sidebar.radio("小タブ (機能選択)", page_keys, key="nav_menu")
 
-    # 選択されている小タブに応じて、孫タブ (ステップ) をサイドバー内に描画
+    # 選択されている機能ページに応じた「サイドバー埋め込み型ステップジャンプ」の描画
+    step_options = None
     if "イベント" in selection:
-        st.sidebar.write("---")
-        st.sidebar.markdown("##### └ 孫タブ (イベントのステップ選択)")
-        st.sidebar.radio(
-            "画面内ステップ",
-            ["1. 基本情報 ＆ 合成タイプ", "2. 実験パラメータ ＆ 条件入力", "3. 派生元参照 (サンプル・イベント・文献)", "4. 備考 ＆ 登録実行"],
-            key="evt_grandchild_tab"
-        )
+        step_options = ["全項目を表示 (1ページ統合)", "1. 基本情報 ＆ 合成タイプ", "2. 実験条件・パラメータ入力", "3. 派生元参照 (サンプル・イベント・文献)", "4. 備考 ＆ 登録実行"]
     elif "測定データ" in selection and "仮登録" not in selection:
-        st.sidebar.write("---")
-        st.sidebar.markdown("##### └ 孫タブ (測定データのステップ選択)")
-        st.sidebar.radio(
-            "画面内ステップ",
-            ["1. アップロード ＆ タイプ選択", "2. 測定条件 ＆ パラメータ調整", "3. 解析・プロットプレビュー", "4. 備考 ＆ 登録実行"],
-            key="msr_grandchild_tab"
-        )
+        step_options = ["全項目を表示 (1ページ統合)", "1. アップロード ＆ タイプ選択", "2. 測定条件 ＆ パラメータ調整", "3. 解析・プロットプレビュー", "4. 備考 ＆ 登録実行"]
     elif "物質" in selection:
+        step_options = ["全項目を表示 (1ページ統合)", "1. 基本情報 ＆ CIF・3D構造", "2. 物性パラメータ ＆ 不純物相・多形", "3. 関連文献 ＆ 登録実行"]
+    elif "サンプル" in selection:
+        step_options = ["全項目を表示 (1ページ統合)", "1. 基本情報 ＆ 識別バッチ名", "2. 保管場所 ＆ 備考"]
+    elif "文献" in selection:
+        step_options = ["全項目を表示 (1ページ統合)", "1. DOI / PubMed ID 検索", "2. メタデータ編集", "3. 添付PDFアップロード"]
+    elif "仮登録・データ管理" in selection:
+        step_options = ["全項目を表示 (1ページ統合)", "1. 仮登録（下書き）一覧 ＆ 補完本登録", "2. 登録データ一覧 ＆ リアルタイム数値編集"]
+    elif "比較" in selection:
+        step_options = ["全項目を表示 (1ページ統合)", "1. 比較対象データの選択", "2. 重ね合わせプロット ＆ 傾向解析"]
+    elif "タスク" in selection:
+        step_options = ["全項目を表示 (1ページ統合)", "1. タスク登録・一覧", "2. カレンダー・カンバンビュー"]
+
+    if step_options:
         st.sidebar.write("---")
-        st.sidebar.markdown("##### └ 孫タブ (物質のステップ選択)")
-        st.sidebar.radio(
-            "画面内ステップ",
-            ["1. 基本情報 ＆ CIF・3D構造プレビュー", "2. 物性パラメータ ＆ 不純物相・多形", "3. 関連文献 ＆ 登録実行"],
-            key="mat_grandchild_tab"
-        )
+        st.sidebar.markdown("##### 🚀 画面内ステップジャンプ")
+        st.sidebar.caption("選択したステップへ直接アクセスできます。")
+        active_step = st.sidebar.radio("ステップ選択", step_options, key="active_step_jump")
 
     st.sidebar.write("---")
     st.sidebar.markdown("##### ⚡ クイック仮登録（下書き保存）パネル")
@@ -147,6 +151,7 @@ def main():
     if st.sidebar.button("📝 現在の入力状態を下書き（仮登録）保存", type="primary", key="sb_btn_quick_draft_save"):
         st.session_state["trigger_instant_draft_save"] = True
         st.sidebar.success("🎉 現在の入力状態を下書き（仮登録）として即時保存しました！データ管理画面で後から補完できます。")
+
 
 
 
