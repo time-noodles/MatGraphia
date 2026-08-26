@@ -73,20 +73,15 @@ def render():
     lit_options={"選択なし (None)":None}
     for l in literatures:
         lit_options[build_literature_label(l)]=l["literature_id"]
-    with st.container():
+    mat_tab1, mat_tab2, mat_tab3 = st.tabs([
+        "1. 基本情報 ＆ CIF・3D構造プレビュー", 
+        "2. 物性パラメータ ＆ 不純物相・多形", 
+        "3. 関連文献 ＆ 登録実行"
+    ])
+
+    with mat_tab1:
+        st.subheader("1. 基本情報 ＆ CIFファイル・3D構造プレビュー")
         name=st.text_input("物質名 (必須 / 例: CuCrS2)",value="",key="draft_mat_name")
-        mat_options={}
-        for m in materials:
-            mat_options[f"{m['name']} #{m['material_id'][:4]}"]=m["material_id"]
-        st.write("---")
-        st.markdown("**【物性値・先行研究情報】**")
-        prop_df_init=pd.DataFrame([{"Property":"Tc (K)","Value":""},{"Property":"Tn (K)","Value":""}])
-        edited_prop_df=st.data_editor(prop_df_init,num_rows="dynamic",hide_index=True,key="mat_prop_editor")
-        st.markdown("**【関連物質リンク（オプション）】**")
-        selected_impurities=st.multiselect("不純物として関連づける物質（オプション）",list(mat_options.keys()),key="mat_impurity_links")
-        selected_polymorphs=st.multiselect("多型として関連づける物質（オプション）",list(mat_options.keys()),key="mat_polymorph_links")
-        ref_lit=st.selectbox("参照文献",list(lit_options.keys()),key="draft_mat_reflit")
-        remarks=st.text_area("備考",key="draft_mat_remarks")
         uploaded_cif=st.file_uploader("CIFファイル(任意)のアップロード",type=["cif","txt"],key="draft_mat_cif")
         cif_bytes_raw=uploaded_cif.getvalue() if uploaded_cif is not None else None
         cif_bytes=_normalize_cif_fraction_tokens(cif_bytes_raw) if cif_bytes_raw is not None else None
@@ -212,6 +207,24 @@ def render():
                 st.error(f"XRDプレビューの生成に失敗しました: {e}")
         elif uploaded_cif is not None and not xrd_plugin:
             st.warning("XRDプラグインが読み込めないため、CIFプレビューは利用できません。")
+
+    with mat_tab2:
+        st.subheader("2. 物性パラメータ ＆ 不純物相・多形")
+        mat_options={}
+        for m in materials:
+            mat_options[f"{m['name']} #{m['material_id'][:4]}"]=m["material_id"]
+        st.markdown("**【物性値・先行研究情報】**")
+        prop_df_init=pd.DataFrame([{"Property":"Tc (K)","Value":""},{"Property":"Tn (K)","Value":""}])
+        edited_prop_df=st.data_editor(prop_df_init,num_rows="dynamic",hide_index=True,key="mat_prop_editor")
+        st.markdown("**【関連物質リンク（オプション）】**")
+        selected_impurities=st.multiselect("不純物として関連づける物質（オプション）",list(mat_options.keys()),key="mat_impurity_links")
+        selected_polymorphs=st.multiselect("多型として関連づける物質（オプション）",list(mat_options.keys()),key="mat_polymorph_links")
+
+    with mat_tab3:
+        st.subheader("3. 関連文献 ＆ 登録実行")
+        ref_lit=st.selectbox("参照文献",list(lit_options.keys()),key="draft_mat_reflit")
+        remarks=st.text_area("備考",key="draft_mat_remarks")
+
         col_m1,col_m2=st.columns(2)
         with col_m1:
             if st.button("物質情報を登録する (本登録)",type="primary"):
@@ -287,3 +300,4 @@ def render():
                     st.success(f"物質情報を下書き（仮登録）しました！データ管理画面で後から補完・本登録できます。(ID: {mat.material_id})")
                 except Exception as e:
                     st.error(f"下書き登録時にエラーが発生しました: {e}")
+

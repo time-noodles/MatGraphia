@@ -77,7 +77,16 @@ def render():
             st.session_state["evt_prefill_params"]=template_params
             st.session_state["evt_form_seed"]=int(st.session_state.get("evt_form_seed",0))+1
         st.session_state["evt_prefill_material"]=prefill_material
-    with st.container():
+
+    e_tab1, e_tab2, e_tab3, e_tab4 = st.tabs([
+        "1. 基本情報 ＆ 合成タイプ", 
+        "2. 実験パラメータ ＆ 条件入力", 
+        "3. 派生元参照 (サンプル・イベント・文献)", 
+        "4. 備考 ＆ 登録実行"
+    ])
+
+    with e_tab1:
+        st.subheader("1. 基本情報 ＆ 合成タイプ選択")
         col_proj,col_mat=st.columns(2)
         with col_proj:
             proj_sel=st.selectbox("プロジェクトID (必須)",["(新規作成)"]+all_projects,key="evt_proj_sel")
@@ -86,7 +95,6 @@ def render():
             mat_sel=st.selectbox("対象物質 (必須)",["(新規作成)"]+all_materials,key="evt_mat_sel")
             target_material=st.text_input("新規対象物質名を入力",value="Bi2Te3",key="evt_target_material_new") if mat_sel=="(新規作成)" else mat_sel
         
-        # 分子量 (M.W. - Molecular Weight) のリアルタイム自動計算・表示
         mw_val=calc_molecular_weight(target_material)
         if mw_val:
             st.info(f"⚖️ 対象物質 **【 {target_material} 】** の分子量 (M.W.): **{mw_val:.3f} g/mol**")
@@ -94,21 +102,15 @@ def render():
             st.caption(f"対象物質: {target_material}")
             
         event_type=st.selectbox("イベントタイプ",evt_type_options,key="evt_event_type")
-        st.write("---")
-        st.write("**派生元 (サンプル・イベント・文献は複数選択可 / 検索で絞り込み可)**")
-        col1,col2=st.columns(2)
-        with col1:
-            input_samples=st.multiselect("元サンプル",list(sample_options.keys()),key="evt_input_samples")
-            ref_events=st.multiselect("参照元イベント",list(evt_options.keys()),key="evt_ref_events")
-        with col2:
-            ref_lits=st.multiselect("ベース文献",list(lit_options.keys()),key="evt_ref_lits")
         motivation=st.text_area("動機 (Motivation) (必須)",placeholder="なぜこの条件で実験を行うのか？",key="evt_motivation")
+
+    with e_tab2:
+        st.subheader("2. 実験パラメータ ＆ 条件入力")
         schema=EVENT_SCHEMAS.get(event_type,{})
         prefill_params=st.session_state.get("evt_prefill_params",{}) if isinstance(st.session_state.get("evt_prefill_params",{}),dict) else {}
         form_seed=int(st.session_state.get("evt_form_seed",0))
         parameters=render_dynamic_form(schema,key_prefix=f"events_{form_seed}",initial_data=prefill_params)
         
-        # 秤量・原料フォーム内の元素 M.W. (原子量 g/mol) リアルタイム自動計算・表示
         elem_mw_info=[]
         if isinstance(parameters,dict):
             for k,v in parameters.items():
@@ -118,8 +120,21 @@ def render():
                         elem_mw_info.append(f"**{v.strip()}**: {atomic_w:.3f} g/mol")
         if elem_mw_info:
             st.info("⚖️ **【秤量・配分元素のリアルタイム M.W. (原子量)】** " + " &nbsp;|&nbsp; ".join(elem_mw_info))
-            
+
+    with e_tab3:
+        st.subheader("3. 派生元参照 (サンプル・イベント・文献)")
+        st.caption("派生元となる「元サンプル」「参照元イベント」「ベース文献」のいずれか1つ以上を選択してください。")
+        col1,col2=st.columns(2)
+        with col1:
+            input_samples=st.multiselect("元サンプル",list(sample_options.keys()),key="evt_input_samples")
+            ref_events=st.multiselect("参照元イベント",list(evt_options.keys()),key="evt_ref_events")
+        with col2:
+            ref_lits=st.multiselect("ベース文献",list(lit_options.keys()),key="evt_ref_lits")
+
+    with e_tab4:
+        st.subheader("4. 備考 ＆ 登録実行")
         remarks=st.text_area("備考",key="evt_remarks")
+        
         st.markdown("<div class='sticky-btn-bar'>",unsafe_allow_html=True)
         btn_col1,btn_col2=st.columns(2)
         with btn_col1:
@@ -185,3 +200,4 @@ def render():
                 except Exception as e:
                     st.error(f"下書き登録時にエラーが発生しました: {e}")
         st.markdown("</div>",unsafe_allow_html=True)
+

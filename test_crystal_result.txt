@@ -1,0 +1,44 @@
+=== Step 1: crystal_toolkit インポート前 ===
+import前 _repr_html_: False
+
+=== Step 2: crystal_toolkit インポート後 ===
+Traceback (most recent call last):
+  File "C:\Users\marconi\Google ドライブ ストリーミング\マイドライブ\Python-Scripts\libs\MatGraphia\test_crystal.py", line 15, in <module>
+    import crystal_toolkit
+  File "C:\Users\marconi\anaconda3\envs\py312\Lib\site-packages\crystal_toolkit\__init__.py", line 9, in <module>
+    from crystal_toolkit.core.jupyter import patch_msonable
+  File "C:\Users\marconi\anaconda3\envs\py312\Lib\site-packages\crystal_toolkit\core\jupyter.py", line 16, in <module>
+    from crystal_toolkit.components.structure import StructureMoleculeComponent
+  File "C:\Users\marconi\anaconda3\envs\py312\Lib\site-packages\crystal_toolkit\components\__init__.py", line 20, in <module>
+    from crystal_toolkit.components.search import SearchComponent
+  File "C:\Users\marconi\anaconda3\envs\py312\Lib\site-packages\crystal_toolkit\components\search.py", line 11, in <module>
+    from mp_api.client import MPRester, MPRestError
+  File "C:\Users\marconi\anaconda3\envs\py312\Lib\site-packages\mp_api\client\__init__.py", line 7, in <module>
+    from .core import MPRestError
+  File "C:\Users\marconi\anaconda3\envs\py312\Lib\site-packages\mp_api\client\core\__init__.py", line 3, in <module>
+    from .client import BaseRester
+  File "C:\Users\marconi\anaconda3\envs\py312\Lib\site-packages\mp_api\client\core\client.py", line 31, in <module>
+    from emmet.core.utils import jsanitize
+  File "C:\Users\marconi\anaconda3\envs\py312\Lib\site-packages\emmet\core\utils.py", line 20, in <module>
+    from pymatgen.analysis.elasticity.strain import Deformation
+  File "C:\Users\marconi\anaconda3\envs\py312\Lib\site-packages\pymatgen\analysis\elasticity\__init__.py", line 13, in <module>
+    from pymatgen.core.elasticity import *  # noqa: E402, F403
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\marconi\anaconda3\envs\py312\Lib\site-packages\pymatgen\core\elasticity\__init__.py", line 5, in <module>
+    from .elastic import (
+  File "C:\Users\marconi\anaconda3\envs\py312\Lib\site-packages\pymatgen\core\elasticity\elastic.py", line 15, in <module>
+    import sympy as sp
+  File "C:\Users\marconi\anaconda3\envs\py312\Lib\site-packages\sympy\__init__.py", line 74, in <module>
+    from .assumptions import (AppliedPredicate, Predicate, AssumptionsContext,
+  File "C:\Users\marconi\anaconda3\envs\py312\Lib\site-packages\sympy\assumptions\__init__.py", line 5, in <module>
+    from .assume import (
+  File "C:\Users\marconi\anaconda3\envs\py312\Lib\site-packages\sympy\assumptions\assume.py", line 11, in <module>
+    from sympy.utilities.source import get_class
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 995, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1091, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1191, in get_data
+KeyboardInterrupt
+^C

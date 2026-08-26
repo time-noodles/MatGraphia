@@ -331,18 +331,28 @@ def render():
                     st.dataframe(pd.DataFrame(table_data), hide_index=True)
 
     with tab_register:
-        measure_type_options=list(MEASUREMENT_SCHEMAS.keys()) if MEASUREMENT_SCHEMAS else ["XRD","SEM","Hall"]
-        measurement_type=st.selectbox("測定タイプ (必須)",measure_type_options,key="measure_type_selector")
-        sample_lbl=st.selectbox("対象サンプル (必須)",list(sample_options.keys()),key="measure_sample_selector")
-        selected_sample_id=sample_options.get(sample_lbl)
-        uploaded_file=st.file_uploader(
-            "生データ(Raw Data)のアップロード (必須)",
-            type=["csv","txt","dat","tif","jpg","png","pdf","bmp","pptx","ppt"],
-            key="measure_upload_file"
-        )
-        uploaded_bytes=uploaded_file.getvalue() if uploaded_file is not None else None
-        if measurement_type=="XRD" and uploaded_file is not None and uploaded_bytes:
-            _render_xrd_upload_preview(uploaded_bytes,uploaded_file.name,selected_sample_id,samples,events_dict,materials)
+        m_tab1, m_tab2, m_tab3, m_tab4 = st.tabs([
+            "1. アップロード ＆ タイプ選択", 
+            "2. 測定条件 ＆ パラメータ調整", 
+            "3. 解析・プロットプレビュー", 
+            "4. 備考 ＆ 登録実行"
+        ])
+
+        with m_tab1:
+            st.subheader("1. 生データアップロード ＆ タイプ選択")
+            measure_type_options=list(MEASUREMENT_SCHEMAS.keys()) if MEASUREMENT_SCHEMAS else ["XRD","SEM","Hall"]
+            measurement_type=st.selectbox("測定タイプ (必須)",measure_type_options,key="measure_type_selector")
+            sample_lbl=st.selectbox("対象サンプル (必須)",list(sample_options.keys()),key="measure_sample_selector")
+            selected_sample_id=sample_options.get(sample_lbl)
+            uploaded_file=st.file_uploader(
+                "生データ(Raw Data)のアップロード (必須)",
+                type=["csv","txt","dat","tif","jpg","png","pdf","bmp","pptx","ppt"],
+                key="measure_upload_file"
+            )
+            uploaded_bytes=uploaded_file.getvalue() if uploaded_file is not None else None
+            if measurement_type=="XRD" and uploaded_file is not None and uploaded_bytes:
+                _render_xrd_upload_preview(uploaded_bytes,uploaded_file.name,selected_sample_id,samples,events_dict,materials)
+
 
 
     plugin=_load_measurement_plugin(measurement_type)
