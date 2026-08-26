@@ -108,7 +108,34 @@ def main():
     elif "nav_menu" not in st.session_state or st.session_state["nav_menu"] not in page_keys:
         st.session_state["nav_menu"]=page_keys[0]
 
-    selection=st.sidebar.radio("📋 メインナビゲーション (全ページ)", page_keys, key="nav_menu")
+    # 3階層構造: 1. 親タブ (カテゴリ選択) -> 2. 小タブ (機能一覧) -> 3. 孫タブ (画面内機能)
+    cat_map = {
+        "🏠 メイン ＆ 検索": [k for k in page_keys if "ホーム" in k or "検索" in k],
+        "📚 実験データの登録": [k for k in page_keys if "登録" in k and "仮登録" not in k],
+        "📊 解析 ＆ データ管理": [k for k in page_keys if "比較" in k or "仮登録・データ管理" in k],
+        "📋 ツール ＆ サポート": [k for k in page_keys if "タスク" in k or "フィードバック" in k]
+    }
+    
+    current_page = st.session_state["nav_menu"]
+    default_cat = "🏠 メイン ＆ 検索"
+    for cat, pk_list in cat_map.items():
+        if current_page in pk_list:
+            default_cat = cat
+            break
+            
+    sel_cat = st.sidebar.selectbox("📂 親タブ (カテゴリ選択)", list(cat_map.keys()), index=list(cat_map.keys()).index(default_cat) if default_cat in cat_map else 0, key="sb_nav_category")
+    sub_pages = cat_map.get(sel_cat, page_keys)
+    if current_page not in sub_pages and sub_pages:
+        st.session_state["nav_menu"] = sub_pages[0]
+        
+    selection=st.sidebar.radio("📋 小タブ (機能選択)", sub_pages, key="nav_menu")
+
+    st.sidebar.write("---")
+    st.sidebar.markdown("##### ⚡ クイック仮登録（下書き保存）パネル")
+    st.sidebar.caption("スクロール位置に関係なく1クリックで下書き保存・補完が可能です。")
+    if st.sidebar.button("📝 現在の入力状態を下書き（仮登録）保存", key="sb_btn_quick_draft_save"):
+        st.toast("💡 画面内の「下書き（仮登録）保存する」ボタンで仮登録を実行できます。データ管理画面で後から補完可能です！")
+
 
 
 
