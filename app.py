@@ -108,33 +108,46 @@ def main():
     elif "nav_menu" not in st.session_state or st.session_state["nav_menu"] not in page_keys:
         st.session_state["nav_menu"]=page_keys[0]
 
-    # 3階層構造: 1. 親タブ (カテゴリ選択) -> 2. 小タブ (機能一覧) -> 3. 孫タブ (画面内機能)
-    cat_map = {
-        "🏠 メイン ＆ 検索": [k for k in page_keys if "ホーム" in k or "検索" in k],
-        "📚 実験データの登録": [k for k in page_keys if "登録" in k and "仮登録" not in k],
-        "📊 解析 ＆ データ管理": [k for k in page_keys if "比較" in k or "仮登録・データ管理" in k],
-        "📋 ツール ＆ サポート": [k for k in page_keys if "タスク" in k or "フィードバック" in k]
-    }
-    
-    current_page = st.session_state["nav_menu"]
-    default_cat = "🏠 メイン ＆ 検索"
-    for cat, pk_list in cat_map.items():
-        if current_page in pk_list:
-            default_cat = cat
-            break
-            
-    sel_cat = st.sidebar.selectbox("📂 親タブ (カテゴリ選択)", list(cat_map.keys()), index=list(cat_map.keys()).index(default_cat) if default_cat in cat_map else 0, key="sb_nav_category")
-    sub_pages = cat_map.get(sel_cat, page_keys)
-    if current_page not in sub_pages and sub_pages:
-        st.session_state["nav_menu"] = sub_pages[0]
-        
-    selection=st.sidebar.radio("📋 小タブ (機能選択)", sub_pages, key="nav_menu")
+    # 3階層ナビゲーション構造:
+    # 1. 親タブ: 文字列セクション見出しによる分類
+    # 2. 小タブ: 各機能ページ
+    # 3. 孫タブ: 機能ページ配下のステップ (サイドバー内に描画)
+
+    selection = st.sidebar.radio("📋 ナビゲーションメニュー (小タブ)", page_keys, key="nav_menu")
+
+    # 選択されている小タブに応じて、孫タブ (ステップ) をサイドバー内に描画
+    if "イベント" in selection:
+        st.sidebar.write("---")
+        st.sidebar.markdown("##### └ 孫タブ (イベントのステップ選択)")
+        st.sidebar.radio(
+            "画面内ステップ",
+            ["1. 基本情報 ＆ 合成タイプ", "2. 実験パラメータ ＆ 条件入力", "3. 派生元参照 (サンプル・イベント・文献)", "4. 備考 ＆ 登録実行"],
+            key="evt_grandchild_tab"
+        )
+    elif "測定データ" in selection and "仮登録" not in selection:
+        st.sidebar.write("---")
+        st.sidebar.markdown("##### └ 孫タブ (測定データのステップ選択)")
+        st.sidebar.radio(
+            "画面内ステップ",
+            ["1. アップロード ＆ タイプ選択", "2. 測定条件 ＆ パラメータ調整", "3. 解析・プロットプレビュー", "4. 備考 ＆ 登録実行"],
+            key="msr_grandchild_tab"
+        )
+    elif "物質" in selection:
+        st.sidebar.write("---")
+        st.sidebar.markdown("##### └ 孫タブ (物質のステップ選択)")
+        st.sidebar.radio(
+            "画面内ステップ",
+            ["1. 基本情報 ＆ CIF・3D構造プレビュー", "2. 物性パラメータ ＆ 不純物相・多形", "3. 関連文献 ＆ 登録実行"],
+            key="mat_grandchild_tab"
+        )
 
     st.sidebar.write("---")
     st.sidebar.markdown("##### ⚡ クイック仮登録（下書き保存）パネル")
-    st.sidebar.caption("スクロール位置に関係なく1クリックで下書き保存・補完が可能です。")
-    if st.sidebar.button("📝 現在の入力状態を下書き（仮登録）保存", key="sb_btn_quick_draft_save"):
-        st.toast("💡 画面内の「下書き（仮登録）保存する」ボタンで仮登録を実行できます。データ管理画面で後から補完可能です！")
+    st.sidebar.caption("1クリックで現在の入力内容をその場でSQLiteへ仮登録（下書き保存）します。")
+    if st.sidebar.button("📝 現在の入力状態を下書き（仮登録）保存", type="primary", key="sb_btn_quick_draft_save"):
+        st.session_state["trigger_instant_draft_save"] = True
+        st.sidebar.success("🎉 現在の入力状態を下書き（仮登録）として即時保存しました！データ管理画面で後から補完できます。")
+
 
 
 

@@ -198,8 +198,11 @@ def render():
 
     if btn_top_sub or btn_bot_sub:
         _execute_event_submit(is_draft_mode=False)
-    elif btn_top_draft or btn_bot_draft:
+    elif btn_top_draft or btn_bot_draft or st.session_state.get("trigger_instant_draft_save"):
+        if st.session_state.get("trigger_instant_draft_save"):
+            st.session_state["trigger_instant_draft_save"] = False
         _execute_event_submit(is_draft_mode=True)
+
 
 
 

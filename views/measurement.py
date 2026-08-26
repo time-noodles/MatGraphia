@@ -401,9 +401,13 @@ def render():
         col_ms1,col_ms2=st.columns(2)
         with col_ms1:
             submitted=st.form_submit_button("測定データを登録する (本登録)",type="primary")
-        with col_ms2:
-            draft_submitted=st.form_submit_button("下書き（仮登録）する")
+        is_instant_draft = st.session_state.get("trigger_instant_draft_save", False)
+        if is_instant_draft:
+            st.session_state["trigger_instant_draft_save"] = False
+            draft_submitted = True
+
         if submitted:
+
             if not sample_lbl or not measurement_type or not measured_at:
                 st.error("【必須エラー】 対象サンプル、測定タイプ、測定日は必須項目です。")
                 return

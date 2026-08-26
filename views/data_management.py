@@ -208,12 +208,12 @@ def render():
                             new_val = st.number_input(f"{k}", value=curr_val, key=f"num_k_{k}_{sel_evt_id}")
                             updated_params[k] = new_val
 
-                if st.button("💾 このイベントの数値変更を保存 ＆ データベース更新", type="primary", key=f"btn_save_evt_num_{sel_evt_id}"):
+                # 即時自動保存＆DB反映ロジック
+                if new_target_mat != target_evt.get("target_material") or updated_params != params:
                     target_evt["target_material"] = new_target_mat
                     target_evt["parameters"] = updated_params
                     db.update_event(target_evt)
-                    st.success("イベントの数値パラメータを保存しました！")
-                    st.rerun()
+                    st.toast("⚡ 編集結果を即座にデータベースへ自動保存しました！")
 
         elif target_category == "📊 測定データの実験条件・数値結果":
             msrs = db.fetch_all_measurements()
@@ -234,7 +234,7 @@ def render():
                 with c_dt:
                     st.caption(f"測定日: {str(target_m.get('measured_at'))[:10]}")
 
-                st.markdown("**数値条件パラメータ:**")
+                st.markdown("**数値条件パラメータ (数値変更時に即時DB保存):**")
                 m_type = target_m.get("measurement_type")
                 if m_type == "Hall":
                     c_i, c_b, c_d = st.columns(3)
@@ -256,12 +256,11 @@ def render():
                             with cols[idx % 3]:
                                 updated_conds[k] = st.number_input(f"{k}", value=curr_v, key=f"m_num_{k}_{sel_m_id}")
 
-                if st.button("💾 測定データの条件変更を保存", type="primary", key=f"btn_save_msr_num_{sel_m_id}"):
+                if new_op != target_m.get("operator") or updated_conds != conds:
                     target_m["operator"] = new_op
                     target_m["conditions"] = updated_conds
                     db.update_measurement(target_m)
-                    st.success("測定条件の数値変更を保存しました！")
-                    st.rerun()
+                    st.toast("⚡ 測定データの条件変更を即座に自動保存しました！")
 
         elif target_category == "🧪 物質の物性パラメータ (Tc/Tn)":
             mats = db.fetch_all_materials()
@@ -281,13 +280,14 @@ def render():
                 with c_tn:
                     tn_val = st.number_input("ネール温度 Tn (K)", value=float(props.get("Tn (K)", 0.0) or 0.0), key=f"num_tn_{sel_mat_id}")
 
-                if st.button("💾 物質の物性値を保存", type="primary", key=f"btn_save_mat_num_{sel_mat_id}"):
-                    props["Tc (K)"] = str(tc_val) if tc_val > 0 else ""
-                    props["Tn (K)"] = str(tn_val) if tn_val > 0 else ""
+                new_tc_str = str(tc_val) if tc_val > 0 else ""
+                new_tn_str = str(tn_val) if tn_val > 0 else ""
+                if new_tc_str != str(props.get("Tc (K)", "")) or new_tn_str != str(props.get("Tn (K)", "")):
+                    props["Tc (K)"] = new_tc_str
+                    props["Tn (K)"] = new_tn_str
                     target_mat["properties"] = props
                     db.update_material(target_mat)
-                    st.success("物質の物性数値を更新しました！")
-                    st.rerun()
+                    st.toast("⚡ 物質の物性値を即座に自動更新しました！")
 
         elif target_category == "📌 サンプル保管場所・備考":
             samples = db.fetch_all_samples()
@@ -309,15 +309,22 @@ def render():
                     hide_index=True
                 )
 
-                if st.button("💾 サンプルの変更内容を保存", type="primary", key="btn_save_edited_samples_full"):
-                    for _, row in edited_df.iterrows():
-                        sid = row["ID"]
-                        orig_s = next((s for s in samples if s["sample_id"] == sid), None)
-                        if orig_s:
+                # テーブルセルの変更を即時検知＆自動DB保存
+                has_changed = False
+                for _, row in edited_df.iterrows():
+                    sid = row["ID"]
+                    orig_s = next((s for s in samples if s["sample_id"] == sid), None)
+                    if orig_s:
+                        if (row["Human ID"] != orig_s.get("human_id") or
+                            row["Form"] != orig_s.get("form") or
+                            row["保管場所 (Location)"] != orig_s.get("location") or
+                            row["備考"] != orig_s.get("remarks")):
                             orig_s["human_id"] = row["Human ID"]
                             orig_s["form"] = row["Form"]
                             orig_s["location"] = row["保管場所 (Location)"]
                             orig_s["remarks"] = row["備考"]
                             db.update_sample(orig_s)
-                    st.success("サンプルの変更内容をデータベースへ保存しました！")
-                    st.rerun()
+                            has_changed = True
+                if has_changed:
+                    st.toast("⚡ サンプルの変更内容を即座に自動保存しました！")
+
