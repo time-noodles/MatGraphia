@@ -110,39 +110,45 @@ def main():
 
     # 親カテゴリ別見出し分類の構成
     cat_definitions = {
-        "【 🏠 メイン ＆ 検索 】": [k for k in page_keys if "ホーム" in k or "検索" in k],
-        "【 📚 データ登録 】": [k for k in page_keys if "登録" in k and "仮登録" not in k],
-        "【 📊 解析 ＆ データ管理 】": [k for k in page_keys if "比較" in k or "仮登録・データ管理" in k],
-        "【 📋 ツール ＆ サポート 】": [k for k in page_keys if "タスク" in k or "フィードバック" in k]
+        "🏠 メイン ＆ 検索": [k for k in page_keys if "ホーム" in k or "検索" in k],
+        "📚 データ登録": [k for k in page_keys if "登録" in k and "仮登録" not in k],
+        "📊 解析 ＆ データ管理": [k for k in page_keys if "比較" in k or "仮登録・データ管理" in k],
+        "📋 ツール ＆ サポート": [k for k in page_keys if "タスク" in k or "フィードバック" in k]
     }
 
-    # サイドバーに親カテゴリ見出しラベルと小タブページをセクション別に描画
-    st.sidebar.markdown("### 🧭 機能一覧")
-    
-    current_nav = st.session_state.get("nav_menu", page_keys[0])
-    selected_page = current_nav
+    # セクション見出し付きの単一全機能メニューリストを構築
+    nav_options = []
+    nav_mapping = {}
+    for cat_name, p_list in cat_definitions.items():
+        header_label = f"--- 【 {cat_name} 】 ---"
+        nav_options.append(header_label)
+        nav_mapping[header_label] = None
+        for p in p_list:
+            nav_options.append(p)
+            nav_mapping[p] = p
 
-    for cat_title, cat_pages in cat_definitions.items():
-        if cat_pages:
-            st.sidebar.markdown(f"**{cat_title}**")
-            # カテゴリ内小タブのラジオ選択
-            idx = cat_pages.index(current_nav) if current_nav in cat_pages else 0
-            chosen = st.sidebar.radio(
-                f"label_{cat_title}", 
-                cat_pages, 
-                index=idx, 
-                key=f"sb_cat_radio_{cat_title}", 
-                label_visibility="collapsed"
-            )
-            if chosen != current_nav and current_nav not in cat_pages:
-                # ユーザーが別のカテゴリのラジオを操作した場合
-                st.session_state["nav_menu"] = chosen
-                selected_page = chosen
-            elif current_nav in cat_pages:
-                st.session_state["nav_menu"] = chosen
-                selected_page = chosen
+    st.sidebar.markdown("### 🧭 機能ナビゲーション")
 
-    selection = st.session_state.get("nav_menu", page_keys[0])
+    curr_nav = st.session_state.get("nav_menu", page_keys[0])
+    curr_index = nav_options.index(curr_nav) if curr_nav in nav_options else 1
+
+    selected_raw = st.sidebar.radio(
+        "機能ページ選択",
+        nav_options,
+        index=curr_index,
+        key="sb_unified_nav_radio",
+        label_visibility="collapsed"
+    )
+
+    # セクション見出し行がクリックされた場合は直下の最初のページを選択
+    if selected_raw.startswith("---"):
+        real_page = next((p for p in nav_options[nav_options.index(selected_raw)+1:] if not p.startswith("---")), page_keys[0])
+        st.session_state["nav_menu"] = real_page
+        selection = real_page
+    else:
+        st.session_state["nav_menu"] = selected_raw
+        selection = selected_raw
+
 
     # 選択されている機能ページに応じた「サイドバー埋め込み型ステップジャンプ」の描画 (ダミー全項目表示なし)
     step_options = None
