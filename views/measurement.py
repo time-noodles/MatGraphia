@@ -331,31 +331,42 @@ def render():
                     st.dataframe(pd.DataFrame(table_data), hide_index=True)
 
     with tab_register:
-        active_step = st.session_state.get("active_step_jump", "全項目を表示 (1ページ統合)")
+        active_step = st.session_state.get("active_step_jump", "")
 
-        if active_step in ["全項目を表示 (1ページ統合)", "1. アップロード ＆ タイプ選択"]:
-            with st.container():
-                st.subheader("1. 生データアップロード ＆ タイプ選択")
-                measure_type_options=list(MEASUREMENT_SCHEMAS.keys()) if MEASUREMENT_SCHEMAS else ["XRD","SEM","Hall"]
-                measurement_type=st.selectbox("測定タイプ (必須)",measure_type_options,key="measure_type_selector")
-                sample_lbl=st.selectbox("対象サンプル (必須)",list(sample_options.keys()),key="measure_sample_selector")
-                selected_sample_id=sample_options.get(sample_lbl)
-                uploaded_file=st.file_uploader(
-                    "生データ(Raw Data)のアップロード (必須)",
-                    type=["csv","txt","dat","tif","jpg","png","pdf","bmp","pptx","ppt"],
-                    key="measure_upload_file"
-                )
-                uploaded_bytes=uploaded_file.getvalue() if uploaded_file is not None else None
-                if measurement_type=="XRD" and uploaded_file is not None and uploaded_bytes:
-                    _render_xrd_upload_preview(uploaded_bytes,uploaded_file.name,selected_sample_id,samples,events_dict,materials)
-                st.write("---")
-        else:
-            measure_type_options=list(MEASUREMENT_SCHEMAS.keys()) if MEASUREMENT_SCHEMAS else ["XRD","SEM","Hall"]
-            measurement_type=st.session_state.get("measure_type_selector", measure_type_options[0])
-            sample_lbl=st.session_state.get("measure_sample_selector", list(sample_options.keys())[0] if sample_options else "")
-            selected_sample_id=sample_options.get(sample_lbl)
-            uploaded_file=st.session_state.get("measure_upload_file")
-            uploaded_bytes=uploaded_file.getvalue() if uploaded_file is not None else None
+        # スクロールアンカー判定スクリプト
+        if "1. アップロード" in active_step:
+            st.components.v1.html("<script>window.location.hash = '#msr_step1'; document.getElementById('msr_step1')?.scrollIntoView({behavior: 'smooth'});</script>", height=0)
+        elif "2. 測定条件" in active_step:
+            st.components.v1.html("<script>window.location.hash = '#msr_step2'; document.getElementById('msr_step2')?.scrollIntoView({behavior: 'smooth'});</script>", height=0)
+        elif "3. 解析" in active_step:
+            st.components.v1.html("<script>window.location.hash = '#msr_step3'; document.getElementById('msr_step3')?.scrollIntoView({behavior: 'smooth'});</script>", height=0)
+        elif "4. 備考" in active_step:
+            st.components.v1.html("<script>window.location.hash = '#msr_step4'; document.getElementById('msr_step4')?.scrollIntoView({behavior: 'smooth'});</script>", height=0)
+
+        # 1. アップロード ＆ タイプ選択
+        st.markdown('<div id="msr_step1"></div>', unsafe_allow_html=True)
+        st.subheader("1. 生データアップロード ＆ タイプ選択")
+        measure_type_options = list(MEASUREMENT_SCHEMAS.keys()) if MEASUREMENT_SCHEMAS else ["XRD", "SEM", "Hall"]
+        measurement_type = st.selectbox("測定タイプ (必須)", measure_type_options, key="measure_type_selector")
+        sample_lbl = st.selectbox("対象サンプル (必須)", list(sample_options.keys()), key="measure_sample_selector")
+        selected_sample_id = sample_options.get(sample_lbl)
+        uploaded_file = st.file_uploader(
+            "生データ(Raw Data)のアップロード (必須)",
+            type=["csv", "txt", "dat", "tif", "jpg", "png", "pdf", "bmp", "pptx", "ppt"],
+            key="measure_upload_file"
+        )
+        uploaded_bytes = uploaded_file.getvalue() if uploaded_file is not None else None
+        if measurement_type == "XRD" and uploaded_file is not None and uploaded_bytes:
+            _render_xrd_upload_preview(uploaded_bytes, uploaded_file.name, selected_sample_id, samples, events_dict, materials)
+        st.write("---")
+
+        # 2. 測定条件 ＆ パラメータ調整
+        st.markdown('<div id="msr_step2"></div>', unsafe_allow_html=True)
+        st.subheader("2. 測定条件 ＆ パラメータ調整")
+        schema = MEASUREMENT_SCHEMAS.get(measurement_type, {})
+        operator = st.text_input("測定担当者 (任意)", value=recent_operator, key="measure_operator_input")
+        measured_at = st.date_input("測定日 (必須)", value=datetime.today(), key="measure_date_input")
+
 
 
 

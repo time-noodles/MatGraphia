@@ -138,10 +138,19 @@ def render():
 
     active_step = st.session_state.get("active_step_jump", "")
 
-    # 1. 基本情報 ＆ 合成タイプ選択
-    st.subheader("1. 基本情報 ＆ 合成タイプ選択")
+    # スクロールアンカー判定スクリプト (テキストメッセージではなく、該当アンカーへ滑らかにスクロール)
     if "1. 基本情報" in active_step:
-        st.info("🎯 **【選択されたステップ: 1. 基本情報 ＆ 合成タイプ選択】**")
+        st.components.v1.html("<script>window.location.hash = '#step1'; document.getElementById('step1')?.scrollIntoView({behavior: 'smooth'});</script>", height=0)
+    elif "2. 実験" in active_step:
+        st.components.v1.html("<script>window.location.hash = '#step2'; document.getElementById('step2')?.scrollIntoView({behavior: 'smooth'});</script>", height=0)
+    elif "3. 派生元" in active_step:
+        st.components.v1.html("<script>window.location.hash = '#step3'; document.getElementById('step3')?.scrollIntoView({behavior: 'smooth'});</script>", height=0)
+    elif "4. 備考" in active_step:
+        st.components.v1.html("<script>window.location.hash = '#step4'; document.getElementById('step4')?.scrollIntoView({behavior: 'smooth'});</script>", height=0)
+
+    # 1. 基本情報 ＆ 合成タイプ選択
+    st.markdown('<div id="step1"></div>', unsafe_allow_html=True)
+    st.subheader("1. 基本情報 ＆ 合成タイプ選択")
     col_proj, col_mat = st.columns(2)
     with col_proj:
         proj_sel = st.selectbox("プロジェクトID (必須)", ["(新規作成)"] + all_projects, key="evt_proj_sel")
@@ -161,9 +170,8 @@ def render():
     st.write("---")
 
     # 2. 実験パラメータ ＆ 条件入力
+    st.markdown('<div id="step2"></div>', unsafe_allow_html=True)
     st.subheader("2. 実験パラメータ ＆ 条件入力")
-    if "2. 実験" in active_step:
-        st.info("🎯 **【選択されたステップ: 2. 実験パラメータ ＆ 条件入力】**")
     schema = EVENT_SCHEMAS.get(event_type, {})
     prefill_params = st.session_state.get("evt_prefill_params", {}) if isinstance(st.session_state.get("evt_prefill_params", {}), dict) else {}
     form_seed = int(st.session_state.get("evt_form_seed", 0))
@@ -181,9 +189,8 @@ def render():
     st.write("---")
 
     # 3. 派生元参照 (サンプル・イベント・文献)
+    st.markdown('<div id="step3"></div>', unsafe_allow_html=True)
     st.subheader("3. 派生元参照 (サンプル・イベント・文献)")
-    if "3. 派生元" in active_step:
-        st.info("🎯 **【選択されたステップ: 3. 派生元参照】**")
     st.caption("派生元となる「元サンプル」「参照元イベント」「ベース文献」のいずれか1つ以上を選択してください。")
     col1, col2 = st.columns(2)
     with col1:
@@ -194,10 +201,10 @@ def render():
     st.write("---")
 
     # 4. 備考 ＆ 登録実行
+    st.markdown('<div id="step4"></div>', unsafe_allow_html=True)
     st.subheader("4. 備考 ＆ 登録実行")
-    if "4. 備考" in active_step:
-        st.info("🎯 **【選択されたステップ: 4. 備考 ＆ 登録実行】**")
     remarks = st.text_area("備考", key="evt_remarks")
+
 
     # Bottom Action Bar (最下部デュアルボタン)
     st.write("")

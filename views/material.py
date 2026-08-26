@@ -96,10 +96,17 @@ def render():
 
     active_step = st.session_state.get("active_step_jump", "")
 
-    # 1. 基本情報 ＆ CIFファイル・3D構造プレビュー
-    st.subheader("1. 基本情報 ＆ CIFファイル・3D構造プレビュー")
+    # スクロールアンカー判定スクリプト
     if "1. 基本情報" in active_step:
-        st.info("🎯 **【選択されたステップ: 1. 基本情報 ＆ CIF・3D構造】**")
+        st.components.v1.html("<script>window.location.hash = '#mat_step1'; document.getElementById('mat_step1')?.scrollIntoView({behavior: 'smooth'});</script>", height=0)
+    elif "2. 物性" in active_step:
+        st.components.v1.html("<script>window.location.hash = '#mat_step2'; document.getElementById('mat_step2')?.scrollIntoView({behavior: 'smooth'});</script>", height=0)
+    elif "3. 関連" in active_step:
+        st.components.v1.html("<script>window.location.hash = '#mat_step3'; document.getElementById('mat_step3')?.scrollIntoView({behavior: 'smooth'});</script>", height=0)
+
+    # 1. 基本情報 ＆ CIFファイル・3D構造プレビュー
+    st.markdown('<div id="mat_step1"></div>', unsafe_allow_html=True)
+    st.subheader("1. 基本情報 ＆ CIFファイル・3D構造プレビュー")
     name = st.text_input("物質名 (必須 / 例: CuCrS2)", value="", key="draft_mat_name")
     uploaded_cif = st.file_uploader("CIFファイル(任意)のアップロード", type=["cif", "txt"], key="draft_mat_cif")
     cif_bytes_raw = uploaded_cif.getvalue() if uploaded_cif is not None else None
@@ -182,9 +189,8 @@ def render():
     st.write("---")
 
     # 2. 物性パラメータ ＆ 不純物相・多形
+    st.markdown('<div id="mat_step2"></div>', unsafe_allow_html=True)
     st.subheader("2. 物性パラメータ ＆ 不純物相・多形")
-    if "2. 物性" in active_step:
-        st.info("🎯 **【選択されたステップ: 2. 物性パラメータ ＆ 不純物相・多形】**")
     st.markdown("**【物性値・先行研究情報】**")
     prop_df_init = pd.DataFrame([{"Property": "Tc (K)", "Value": ""}, {"Property": "Tn (K)", "Value": ""}])
     edited_prop_df = st.data_editor(prop_df_init, num_rows="dynamic", hide_index=True, key="mat_prop_editor")
@@ -194,9 +200,8 @@ def render():
     st.write("---")
 
     # 3. 関連文献 ＆ 登録実行
+    st.markdown('<div id="mat_step3"></div>', unsafe_allow_html=True)
     st.subheader("3. 関連文献 ＆ 登録実行")
-    if "3. 関連" in active_step:
-        st.info("🎯 **【選択されたステップ: 3. 関連文献 ＆ 登録実行】**")
     ref_lit = st.selectbox("参照文献", list(lit_options.keys()), key="draft_mat_reflit")
     remarks = st.text_area("備考", key="draft_mat_remarks")
 
