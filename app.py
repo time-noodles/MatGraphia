@@ -116,38 +116,35 @@ def main():
         "📋 ツール ＆ サポート": [k for k in page_keys if "タスク" in k or "フィードバック" in k]
     }
 
-    # セクション見出し付きの単一全機能メニューリストを構築
-    nav_options = []
-    nav_mapping = {}
-    for cat_name, p_list in cat_definitions.items():
-        header_label = f"--- 【 {cat_name} 】 ---"
-        nav_options.append(header_label)
-        nav_mapping[header_label] = None
-        for p in p_list:
-            nav_options.append(p)
-            nav_mapping[p] = p
-
-    st.sidebar.markdown("### 🧭 機能ナビゲーション")
-
+    # 親カテゴリ(親タブ)の選択
     curr_nav = st.session_state.get("nav_menu", page_keys[0])
-    curr_index = nav_options.index(curr_nav) if curr_nav in nav_options else 1
+    default_cat_idx = 0
+    for idx, (cat_name, p_list) in enumerate(cat_definitions.items()):
+        if curr_nav in p_list:
+            default_cat_idx = idx
+            break
 
-    selected_raw = st.sidebar.radio(
-        "機能ページ選択",
-        nav_options,
-        index=curr_index,
-        key="sb_unified_nav_radio",
-        label_visibility="collapsed"
+    selected_cat = st.sidebar.selectbox(
+        "📂 親カテゴリ (親タブ)",
+        list(cat_definitions.keys()),
+        index=default_cat_idx,
+        key="sb_parent_category"
     )
 
-    # セクション見出し行がクリックされた場合は直下の最初のページを選択
-    if selected_raw.startswith("---"):
-        real_page = next((p for p in nav_options[nav_options.index(selected_raw)+1:] if not p.startswith("---")), page_keys[0])
-        st.session_state["nav_menu"] = real_page
-        selection = real_page
-    else:
-        st.session_state["nav_menu"] = selected_raw
-        selection = selected_raw
+    # 選択された親カテゴリ配下の小タブ(機能ページ)ラジオ
+    cat_sub_pages = cat_definitions.get(selected_cat, page_keys)
+    if curr_nav not in cat_sub_pages and cat_sub_pages:
+        st.session_state["nav_menu"] = cat_sub_pages[0]
+        curr_nav = cat_sub_pages[0]
+
+    sub_idx = cat_sub_pages.index(curr_nav) if curr_nav in cat_sub_pages else 0
+    selection = st.sidebar.radio(
+        "📋 機能ページ選択 (小タブ)",
+        cat_sub_pages,
+        index=sub_idx,
+        key="nav_menu"
+    )
+
 
 
     # 選択されている機能ページに応じた「サイドバー埋め込み型ステップジャンプ」の描画 (ダミー全項目表示なし)

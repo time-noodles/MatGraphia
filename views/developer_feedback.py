@@ -19,30 +19,28 @@ def render():
     t1,t2,t3,t4=st.tabs(["新規投稿","ログ一覧・管理","フィードバックの共有・集約","自動エラーログ (システム)"])
     with t1:
         st.subheader("新規フィードバックの投稿")
-        if st.session_state.get("feedback_success_msg"):
-            st.success(st.session_state["feedback_success_msg"])
-            if st.button("➕ 続けて新しいフィードバックを投稿する",key="btn_post_another_feedback"):
-                del st.session_state["feedback_success_msg"]
-                st.rerun()
-        else:
-            with st.form("feedback_input_form",clear_on_submit=True):
-                log_type=st.selectbox("種類",["Feedback","Bug"])
-                title=st.text_input("件名 (簡単な概要)")
-                content=st.text_area("詳細内容 (具体的な手順や要望)")
-                attach_env=st.checkbox("システム環境情報（OS / Pythonバージョン）を添付する",value=True)
-                submitted=st.form_submit_button("送信する",type="primary")
-                if submitted:
-                    if not title or not content:
-                        st.error("件名と詳細内容を入力してください。")
-                    else:
-                        final_content=content
-                        if attach_env:
-                            env_info=f"\n\n--- システム環境情報 ---\nOS: {platform.system()} {platform.release()}\nPython: {sys.version.split()[0]}"
-                            final_content+=env_info
-                        log_id=str(uuid.uuid4())
-                        db.insert_developer_log(log_id,log_type,title,final_content,"開発フィードバック")
-                        st.session_state["feedback_success_msg"]="🎉 フィードバックを正常に登録・送信しました！「ログ一覧・管理」タブで内容を確認できます。"
-                        st.rerun()
+        st.caption("アプリケーションへの改善要望や不具合報告を投稿できます。開発者ログに即座に反映されます。")
+        
+        with st.form("feedback_input_form", clear_on_submit=True):
+            log_type = st.selectbox("種類", ["Feedback", "Bug"])
+            title = st.text_input("件名 (簡単な概要)")
+            content = st.text_area("詳細内容 (具体的な手順や要望)")
+            attach_env = st.checkbox("システム環境情報（OS / Pythonバージョン）を添付する", value=True)
+            submitted = st.form_submit_button("✨ フィードバックを送信する", type="primary")
+
+            if submitted:
+                if not title or not content:
+                    st.error("件名と詳細内容を入力してください。")
+                else:
+                    final_content = content
+                    if attach_env:
+                        env_info = f"\n\n--- システム環境情報 ---\nOS: {platform.system()} {platform.release()}\nPython: {sys.version.split()[0]}"
+                        final_content += env_info
+                    log_id = str(uuid.uuid4())
+                    db.insert_developer_log(log_id, log_type, title, final_content, "開発フィードバック")
+                    st.success(f"🎉 フィードバック 「{title}」 を正常に登録・送信しました！「ログ一覧・管理」タブで確認できます。")
+                    st.toast("🎉 フィードバックを登録しました！")
+
 
     with t2:
         st.subheader("システムログ ＆ フィードバック一覧")
