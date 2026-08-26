@@ -5,8 +5,9 @@ import plugin_manager as pm
 from ui.forms import render_dynamic_form
 from ui.helpers import _json_or_raw,log_errors
 
-TITLE="文献の登録"
-ORDER=1
+TITLE="📚 文献の登録"
+ORDER=2
+
 
 # 画面描画
 @log_errors("文献の登録")

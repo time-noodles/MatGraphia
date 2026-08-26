@@ -1,10 +1,11 @@
 import streamlit as st
 import database as db
 from schemas import Task
-from ui.helpers import log_errors
+from ui.helpers import log_errors,navigate_to
 
-TITLE="ホーム (Homepage)"
+TITLE="🏠 ホーム"
 ORDER=0
+
 
 # 画面描画
 @log_errors("ホーム")
@@ -13,8 +14,8 @@ def render():
     st.markdown("実験データ・物質情報・合成プロセスとタスクを一元管理するホーム画面です。")
 
     def _navigate_to(target_page_title):
-        st.session_state["nav_menu"]=target_page_title
-        st.rerun()
+        navigate_to(target_page_title)
+
 
     # 全データの取得
     literatures=db.fetch_all_literatures()
@@ -146,3 +147,27 @@ def render():
         st.markdown("**📊 測定データ**")
         if st.button("測定の登録へ",key="q_nav_msr"):
             _navigate_to("測定データの登録")
+
+    st.write("---")
+
+    # 5. 今後予定されているアップデート ＆ 開発ロードマップ
+    st.subheader("🚀 機能追加状況 ＆ 今後予定されている開発ロードマップ")
+    st.markdown("MatGraphia で実装された機能および次期アップデート予定の一覧です。")
+
+    r1,r2,r3=st.columns(3)
+    with r1:
+        st.success("🔬 **全9種 測定プラグイン＆解析**\n- XRD/SEM/顕微鏡/Raman/Laue/電気化学/PPMS(4/6端子)/Shift電流/MPMS\n- **ステータス**: `✅ 実装完了`")
+    with r2:
+        st.success("🧪 **試料間データ比較 ＆ 重ね描き分析**\n- 複数サンプル間のメタデータ・物性・測定プロット横並び比較\n- **ステータス**: `✅ 実装完了`")
+    with r3:
+        st.success("📍 **試料保管場所 Link ＆ 絞り込み**\n- 保管場所タグの直感リンク化・同場所サンプルの即時検索\n- **ステータス**: `✅ 実装完了`")
+
+    r4,r5,r6=st.columns(3)
+    with r4:
+        st.info("🤖 **Gemini AI メタデータ自動解析**\n- 論文PDFや機器出力ログからのパラメーター全自動構造化抽出\n- **ステータス**: `⚙️ 開発・調整中`")
+    with r5:
+        st.info("🧊 **3D結晶構造マルチ比較 ＆ 界面解析**\n- 複数CIFファイルの同時3D表示・積層構造の視覚化\n- **ステータス**: `試作中`")
+    with r6:
+        st.info("💬 **新機能のご要望・アイデア募集**\n- 実験現場で欲しい機能は「開発フィードバック」より投稿可能です\n- **ステータス**: `常時受付中`")
+
+

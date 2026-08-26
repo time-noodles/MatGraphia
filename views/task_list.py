@@ -3,10 +3,11 @@ import database as db
 import pandas as pd
 from datetime import date,datetime
 from schemas import Task
-from ui.helpers import log_errors
+from ui.helpers import log_errors,build_literature_label
 
-TITLE="タスクリスト"
-ORDER=7
+TITLE="📋 タスク ＆ カレンダー管理"
+ORDER=8
+
 
 # 画面描画
 @log_errors("タスクリスト")
@@ -18,6 +19,7 @@ def render():
     samples=db.fetch_all_samples()
     events=db.fetch_all_events()
     materials=db.fetch_all_materials()
+    literatures=db.fetch_all_literatures()
 
     # 選択肢の構築
     sample_opts={"(なし)":None}
@@ -26,6 +28,8 @@ def render():
     for e in events:event_opts[f"Event: {e['event_type']} on {e['target_material']} ({e['event_id'][:4]})"]=e["event_id"]
     mat_opts={"(なし)":None}
     for m in materials:mat_opts[f"Material: {m['name']} ({m['material_id'][:4]})"]=m["material_id"]
+    lit_opts={"(なし)":None}
+    for l in literatures:lit_opts[f"Literature: {build_literature_label(l)}"]=l["literature_id"]
 
     # 親タスクの選択肢 (メインタスクのみ)
     main_tasks=[t for t in tasks if not t.get("parent_task_id")]
@@ -57,10 +61,11 @@ def render():
             with col_s:
                 initial_status=st.selectbox("初期ステータス",["Todo","In Progress","Done"])
 
-            rel_type=st.selectbox("関連データ種別 (任意)",["なし","Sample","Event","Material"])
+            rel_type=st.selectbox("関連データ種別 (任意)",["なし","Sample","Event","Material","Literature"])
             if rel_type=="Sample":rel_id=st.selectbox("関連サンプル",list(sample_opts.keys()))
             elif rel_type=="Event":rel_id=st.selectbox("関連イベント",list(event_opts.keys()))
             elif rel_type=="Material":rel_id=st.selectbox("関連物質",list(mat_opts.keys()))
+            elif rel_type=="Literature":rel_id=st.selectbox("関連文献",list(lit_opts.keys()))
             else:rel_id="(なし)"
 
             remarks=st.text_area("備考 / メモ",placeholder="#優先度高 などのタグも可")
@@ -75,6 +80,8 @@ def render():
                     if rel_type=="Sample":target_rel_id=sample_opts[rel_id]
                     elif rel_type=="Event":target_rel_id=event_opts[rel_id]
                     elif rel_type=="Material":target_rel_id=mat_opts[rel_id]
+                    elif rel_type=="Literature":target_rel_id=lit_opts[rel_id]
+
                     tsk=Task(
                         parent_task_id=parent_id,
                         title=title,
@@ -240,4 +247,6 @@ def render():
             for d in month_dates:
                 with st.expander(f"📅 {d} ({len(dated_tasks[d])} 件)",expanded=True):
                     for t in dated_tasks[d]:
-                        st.write(f"- **[{t['status']}]** {t['title']} {f'({t[\"remarks\"]})' if t.get('remarks') else ''}")
+                        rem_str=f"({t['remarks']})" if t.get('remarks') else ""
+                        st.write(f"- **[{t['status']}]** {t['title']} {rem_str}")
+

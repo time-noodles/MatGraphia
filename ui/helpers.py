@@ -227,3 +227,29 @@ def log_errors(page_name:str):
                 st.exception(e)
         return wrapper
     return decorator
+
+
+def navigate_to(target_page_title:str):
+    import streamlit as st
+    st.session_state["app_nav_target"]=target_page_title
+    st.rerun()
+
+
+def render_location_badge(location_str: str | None, key_prefix: str = "loc"):
+    """
+    保管場所インタラクティブリンクバッジの描画
+    """
+    import streamlit as st
+    if not location_str or location_str.strip() in ["", "未指定", "なし", "-"]:
+        st.caption("📍 保管場所: 未指定")
+        return
+    loc = location_str.strip()
+    col_icon, col_btn = st.columns([1, 15])
+    with col_icon:
+        st.write("📍")
+    with col_btn:
+        if st.button(f"保管場所: {loc} (この場所のサンプルを検索)", key=f"btn_loc_filter_{key_prefix}_{hash(loc)}"):
+            st.session_state["sample_location_search_query"] = loc
+            navigate_to("サンプルの登録")
+
+

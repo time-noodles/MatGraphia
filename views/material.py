@@ -8,8 +8,9 @@ import plugin_manager as pm
 from ui.forms import render_dynamic_form
 from ui.helpers import _normalize_cif_fraction_tokens,build_literature_label,log_errors
 
-TITLE="物質情報の登録"
-ORDER=2
+TITLE="🧪 物質の登録"
+ORDER=3
+
 
 # 測定用プラグインのロード
 def _load_measurement_plugin(measurement_type):

@@ -6,20 +6,21 @@
 
 ## 1. 実行・開発コマンド
 
-すべてのコマンドは、仮想環境 `py312` (`/home/kotoyumin/miniconda3/envs/py312/bin/python`) で実行します。
+すべてのコマンドは、仮想環境 `py312` (conda activate py312) で実行します。
 
 * **アプリケーションの起動**
   ```bash
-  /home/kotoyumin/miniconda3/envs/py312/bin/streamlit run app.py
+  streamlit run app.py
   ```
 * **データベースの初期化・再構築 (既存データ破棄)**
   ```bash
-  /home/kotoyumin/miniconda3/envs/py312/bin/python -c "import database;database.init_db()"
+  python -c "import database;database.init_db()"
   ```
 * **テストの実行 (pytest)**
   ```bash
-  /home/kotoyumin/miniconda3/envs/py312/bin/pytest tests/ -v
+  pytest tests/ -v
   ```
+
 
 ---
 

@@ -14,8 +14,9 @@ from ui.helpers import (
 )
 from ui.validators import is_duplicate_event
 
-TITLE="イベントの登録"
-ORDER=3
+TITLE="⚗️ イベントの登録"
+ORDER=4
+
 
 # 画面描画
 @log_errors("イベントの登録")

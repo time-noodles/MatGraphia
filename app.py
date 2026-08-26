@@ -9,7 +9,7 @@ import file_manager as fm
 os.environ["NO_PROXY"]="localhost,127.0.0.1"
 st.set_page_config(page_title="MatGraphia",layout="wide")
 
-# カスタムデザイン & スクロール追従ボタンCSSスタイル
+# カスタムデザイン & スクロール追従ボタンCSSスタイル ＆ サイドバー改善
 st.markdown("""
 <style>
 /* 登録フォームの仮登録・本登録ボタンの視認性向上 */
@@ -34,6 +34,18 @@ div.stButton > button[kind="primary"]:hover {
     box-shadow: 0 4px 20px rgba(0,0,0,0.12);
     border: 1px solid rgba(0,0,0,0.08);
 }
+/* サイドバーのモダンデザインカスタマイズ */
+div[data-testid="stSidebar"] div.stRadio div[role="radiogroup"] label {
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-weight: 500;
+    margin-bottom: 3px;
+    transition: all 0.2s ease-in-out;
+}
+div[data-testid="stSidebar"] div.stRadio div[role="radiogroup"] label:hover {
+    background-color: #edf2f7;
+    transform: translateX(2px);
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -47,7 +59,9 @@ def initialize_system():
 initialize_system()
 
 # ビューモジュールのメタデータ抽出
+@st.cache_data
 def load_views():
+
     import ast
     import pkgutil
     import views
@@ -77,20 +91,25 @@ def load_views():
 
 # メイン処理
 def main():
-    st.sidebar.title("MatGraphia DB")
+    st.sidebar.title("🧬 MatGraphia DB")
+    st.sidebar.caption("物質科学実験データ ＆ プロセス統括プラットフォーム")
     pages=load_views()
     if not pages:
         st.sidebar.error("ページが読み込めませんでした。")
         return
     page_keys=list(pages.keys())
     nav_target=st.session_state.get("app_nav_target")
-    if nav_target in page_keys:
-        st.session_state["nav_menu"]=nav_target
-        del st.session_state["app_nav_target"]
+    if nav_target:
+        matched_key = next((k for k in page_keys if nav_target in k or k in nav_target), None)
+        if matched_key:
+            st.session_state["nav_menu"] = matched_key
+        if "app_nav_target" in st.session_state:
+            del st.session_state["app_nav_target"]
     elif "nav_menu" not in st.session_state or st.session_state["nav_menu"] not in page_keys:
         st.session_state["nav_menu"]=page_keys[0]
         
-    selection=st.sidebar.radio("メニュー",page_keys,key="nav_menu")
+    selection=st.sidebar.radio("📋 ナビゲーションメニュー",page_keys,key="nav_menu")
+
     st.sidebar.write("---")
     st.sidebar.subheader("外部連携 (Obsidian)")
     st.sidebar.caption("同期先: `obsidian_vault` フォルダ")

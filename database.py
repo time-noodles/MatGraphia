@@ -434,7 +434,6 @@ def insert_developer_log(log_id:str,log_type:str,title:str,content:str,page_name
     """,(log_id,log_type,title,content,page_name,status,datetime.now().isoformat(),action_plan,verification_notes))
     conn.commit()
     conn.close()
-    _safe_cache_clear()
     sync_obsidian()
 
 # 開発フィードバック/エラーログのステータス更新
@@ -444,7 +443,6 @@ def update_developer_log_status(log_id:str,status:str):
     cursor.execute("UPDATE developer_logs SET status=? WHERE log_id=?",(status,log_id))
     conn.commit()
     conn.close()
-    _safe_cache_clear()
     sync_obsidian()
 
 # 開発フィードバックの改善計画・検証メモの更新
@@ -457,11 +455,9 @@ def update_developer_log_plan(log_id:str,action_plan:str,verification_notes:str,
         cursor.execute("UPDATE developer_logs SET action_plan=?,verification_notes=? WHERE log_id=?",(action_plan,verification_notes,log_id))
     conn.commit()
     conn.close()
-    _safe_cache_clear()
     sync_obsidian()
 
 # 開発フィードバック/エラーログの全件取得
-@_safe_cache_data
 def fetch_all_developer_logs()->List[Dict]:
     conn=get_connection()
     cursor=conn.cursor()
@@ -469,6 +465,7 @@ def fetch_all_developer_logs()->List[Dict]:
     rows=cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
 
 # 文献の更新
 def update_literature(lit:Literature):
@@ -848,8 +845,8 @@ def fetch_all_materials()->List[Dict]:
     conn.close()
     return res
 
-@_safe_cache_data
 def fetch_all_tasks()->List[Dict]:
+
     conn=get_connection()
     cursor=conn.cursor()
     cursor.execute("SELECT * FROM tasks ORDER BY COALESCE(updated_at,created_at) DESC")

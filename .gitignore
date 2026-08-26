@@ -5,6 +5,7 @@ obsidian_vault/
 .pytest_cache/
 
 # 特定の拡張子・ファイルを除外
-*.bat
+*.tmp.bat
 *.tmp.txt
-scratch_open_logs.json
+scratch_open_logs.json
+

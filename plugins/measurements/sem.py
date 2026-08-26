@@ -170,3 +170,53 @@ def prefill_from_upload(file_name: str, file_bytes: bytes) -> tuple[dict, list[s
         warn_msgs.append(err)
 
     return initial_data, info_msgs, warn_msgs
+
+
+def calculate_composition_ratio(
+    at_percent_rows: list[dict],
+    selected_elements: list[str],
+    target_constant: float = 2.0
+) -> tuple[list[dict], str, float, str | None]:
+    """
+    指定された元素リストの at% の和が target_constant になるように規格化スケールファクターを計算し、
+    各元素の組成比（化学量論比）と算出化学式文字列を返す。
+    """
+    if not at_percent_rows:
+        return [], "", 0.0, "EDX at% データが存在しません。"
+
+    if not selected_elements:
+        return [], "", 0.0, "組成比計算の対象とする元素を選択してください。"
+
+    selected_at_sum = 0.0
+    for r in at_percent_rows:
+        elem = str(r.get("element") or "").strip()
+        if elem in selected_elements:
+            selected_at_sum += float(r.get("at_percent") or 0.0)
+
+    if selected_at_sum <= 0:
+        return [], "", 0.0, "選択された元素の at% の合計が 0 以下のため、計算できません。"
+
+    factor = target_constant / selected_at_sum
+
+    ratio_rows = []
+    formula_parts = []
+    for r in at_percent_rows:
+        elem = str(r.get("element") or "").strip()
+        at_val = float(r.get("at_percent") or 0.0)
+        ratio_val = round(at_val * factor, 3)
+        ratio_rows.append({
+            "element": elem,
+            "at_percent": at_val,
+            "ratio": ratio_val,
+            "is_selected": elem in selected_elements
+        })
+        if ratio_val > 0:
+            if abs(ratio_val - round(ratio_val)) < 0.02:
+                formatted_ratio = str(int(round(ratio_val)))
+            else:
+                formatted_ratio = f"{ratio_val:.2f}"
+            formula_parts.append(f"{elem}{formatted_ratio}")
+
+    formula_str = "".join(formula_parts)
+    return ratio_rows, formula_str, factor, None
+

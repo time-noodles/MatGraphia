@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=MatGraphia DB
+Comment=物質科学実験データ ＆ プロセス統括プラットフォーム
+Exec=bash -c 'cd "$(dirname "%k")" && ./launch.sh'
+
+Icon=utilities-terminal
+Terminal=true
+Categories=Development;Science;Education;
+StartupNotify=true

@@ -3,8 +3,9 @@ import database as db
 import pandas as pd
 from ui.helpers import log_errors
 
-TITLE="検索とタグ"
-ORDER=8
+TITLE="🔍 グローバル検索"
+ORDER=1
+
 
 # キーワードによる絞り込みフィルタ
 def filter_by_keywords(rows,keywords,fields):
@@ -74,8 +75,7 @@ def render():
                     with col_act:
                         if st.button("🔗 イベントの派生元に指定",key=f"link_lit_{lit['literature_id']}"):
                             st.session_state["evt_search_q"]=lit["title"]
-                            st.session_state["nav_menu"]="イベントの登録"
-                            st.rerun()
+                            navigate_to("イベントの登録")
                 if len(f_lits)>10:st.dataframe(pd.DataFrame(f_lits)[["literature_id","title","authors","doi"]],hide_index=True)
             if f_evts:
                 st.markdown(f"**イベント ({len(f_evts)}件)**")
@@ -86,8 +86,7 @@ def render():
                     with col_act:
                         if st.button("🔗 イベントの参照元に指定",key=f"link_evt_{evt['event_id']}"):
                             st.session_state["evt_search_q"]=evt["target_material"]
-                            st.session_state["nav_menu"]="イベントの登録"
-                            st.rerun()
+                            navigate_to("イベントの登録")
                 if len(f_evts)>10:st.dataframe(pd.DataFrame(f_evts)[["event_id","project_id","target_material","event_type"]],hide_index=True)
             if f_smps:
                 st.markdown(f"**サンプル ({len(f_smps)}件)**")
@@ -98,8 +97,7 @@ def render():
                     with col_act:
                         if st.button("🔗 サンプルの元データに指定",key=f"link_smp_{smp['sample_id']}"):
                             st.session_state["evt_search_q"]=smp["human_id"]
-                            st.session_state["nav_menu"]="イベントの登録"
-                            st.rerun()
+                            navigate_to("イベントの登録")
                 if len(f_smps)>10:st.dataframe(pd.DataFrame(f_smps)[["sample_id","human_id","form","location"]],hide_index=True)
             if f_msrs:
                 st.markdown(f"**測定 ({len(f_msrs)}件)**")
