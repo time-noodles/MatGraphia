@@ -13,19 +13,19 @@ from typing import Tuple, Dict, Any, List
 
 SCHEMA = {
     "type": "PPMS_6probe",
-    "name": "PPMS 六端子法 (ホール効果 ρxy, RH, 搬送波濃度 n, 移動度 μ)",
-    "description": "ホール効果測定データ (Vxy vs H) からのホール係数 RH, キャリア型 (p/n), キャリア密度 n, 移動度 μ 算定",
+    "name": r"PPMS 六端子法 (ホール効果 $\rho_{xy}$, $R_\mathrm{H}$, 搬送波濃度 $n$, 移動度 $\mu$)",
+    "description": r"ホール効果測定データ ($V_{xy}$ vs $H$) からのホール係数 $R_\mathrm{H}$, キャリア型 (p/n), キャリア密度 $n$, 移動度 $\mu$ 算定",
     "fields": [
         {
             "name": "temp_k",
-            "label": "測定温度 (K)",
+            "label": r"測定温度 $T$ [K]",
             "type": "number",
             "default": 300.0,
             "required": True,
         },
         {
             "name": "max_magnetic_field_t",
-            "label": "最大磁場 (T)",
+            "label": r"最大磁場 $H$ [T]",
             "type": "number",
             "default": 9.0,
             "required": False,
@@ -40,21 +40,21 @@ SCHEMA = {
         },
         {
             "name": "hall_coefficient_rh_cm3_c",
-            "label": "ホール係数 RH (cm³/C)",
+            "label": r"ホール係数 $R_\mathrm{H}$ [$\mathrm{cm}^3/\mathrm{C}$]",
             "type": "number",
             "default": 0.0,
             "required": False,
         },
         {
             "name": "carrier_density_n_cm3",
-            "label": "搬送波 (キャリア) 密度 n (cm⁻³)",
+            "label": r"搬送波 (キャリア) 密度 $n$ [$\mathrm{cm}^{-3}$]",
             "type": "text",
             "default": "1.0e19",
             "required": False,
         },
         {
             "name": "mobility_mu_cm2_vs",
-            "label": "ホール移動度 μ (cm²/V·s)",
+            "label": r"ホール移動度 $\mu$ [$\mathrm{cm}^2/(\mathrm{V}\cdot\mathrm{s})$]",
             "type": "number",
             "default": 100.0,
             "required": False,

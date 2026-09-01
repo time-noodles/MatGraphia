@@ -27,7 +27,7 @@
     - [⚗️ イベントの登録](#️-イベントの登録)
     - [📌 サンプルの登録 ＆ 保管場所リンク](#-サンプルの登録--保管場所リンク)
     - [📊 測定データの登録 (全10種対応)](#-測定データの登録-全10種対応)
-    - [秤 データの比較 ＆ 傾向分析 (専用画面)](#-データの比較--傾向分析-専用画面)
+    - [⚖️ データの比較 ＆ 傾向分析 (専用画面)](#️-データの比較--傾向分析-専用画面)
     - [📂 仮登録・データ管理・編集 (1ページ統合管理)](#-仮登録データ管理編集-1ページ統合管理)
     - [📋 タスク ＆ カレンダー管理 (親子サブタスク対応)](#-タスク--カレンダー管理-親子サブタスク対応)
     - [💬 開発フィードバック ＆ システムログ](#-開発フィードバック--システムログ)
@@ -57,7 +57,7 @@ MatGraphia は以下の研究ワークフローを包括的にサポートしま
 - **イベント管理**: 固相合成 / CVT / アルゴンアニール / 脱インターカレーション等の合成手順・仕込み記録
 - **サンプル管理**: 生成サンプルの追跡・**物理的保管場所ダイレクトリンク**
 - **全10種 測定データ管理 ＆ 自動解析**:
-  - XRD / SEM-EDX / 顕微鏡写真 / Raman / Laue / 電気化学 (CV, GCD) / PPMS 4端子 (超伝導 $R-T, T_c$) / PPMS 6端子 (ホール効果 $R_H, n, \mu$) / Shift電流 ($I_{sc}$) / MPMS (FC/ZFC, $\mu_B/\text{f.u.}$)
+  - XRD / SEM-EDX / 顕微鏡写真 / Raman / Laue / 電気化学 (CV, GCD) / PPMS 4端子 (超伝導 $R-T$, $T_\mathrm{c}$) / PPMS 6端子 (ホール効果 $R_\mathrm{H}$, $n$, $\mu$) / Shift電流 ($I_\mathrm{sc}$) / MPMS (FC/ZFC, $\mu_\mathrm{B}/\mathrm{f.u.}$)
 - **試料間データ比較 ＆ 重ね描き分析**: サンプル間・測定種別間でのマトリクス横並び比較およびプロット重畳解析
 - **仮登録（下書き保存）＆ 元画面同等フルUI管理**: 全データ登録画面で1クリック仮登録に対応。データ管理画面で元画面と同じ完全な入力UIを用いて補完・本登録昇格が可能。
 - **Obsidian 連携**: 全データを Markdown + 画像 + 双方向リンク（`[[]]`）として自動エクスポート
@@ -214,13 +214,13 @@ Material (物質) ────────────────────�
 | **XRD** | `xrd.py` | RAW/CSV 読込, `pybeads` BG 除去, CIF 重畳, $hkl$ ミラー指数付記, CSV 出力 |
 | **SEM** | `sem.py` | JSM-IT700HR PDF 定量抽出, at% 規格化による組成比 (Stoichiometry) 自動計算 |
 | **Microscope** | `microscope.py` | 光学/AFM/TEM/SEM 画像 (.png, .jpg, .tif, .bmp) パース ＆ 倍率情報保持 |
-| **Raman** | `raman.py` | Raman shift [$\text{cm}^{-1}$] vs 強度 [a.u.], `pybeads` ベースライン除去, ピーク検出 |
+| **Raman** | `raman.py` | Raman shift [$\mathrm{cm}^{-1}$] vs 強度 [a.u.], `pybeads` ベースライン除去, ピーク検出 |
 | **Laue** | `laue.py` | 結晶方位 [$hkl$] 解析写真 (.png/.jpg) ＆ PowerPoint (.pptx) 管理 |
-| **Electrochemistry** | `electrochemistry.py` | CV ($E\text{ [V]}$ vs $I\text{ [\mu A]}$) ＆ GCD/PS ($t\text{ [min]}$ vs $I\text{ [\mu A]}$) 自動パース |
-| **PPMS (4端子)** | `ppms_4probe.py` | 温度 $T\text{ [K]}$ vs 抵抗 $R\text{ [\Omega]}$ / 抵抗率 $\rho$, 超伝導 $T_c$, RRR 算出 |
-| **PPMS (6端子)** | `ppms_6probe.py` | ホール効果 $V_{xy} - H$ フィッティング, ホール係数 $R_H$, 伝導型(p/n), キャリア密度 $n$, 移動度 $\mu$ |
-| **ShiftCurrent** | `shift_current.py` | 光電応答 $I - V$, ゼロバイアス光電流 $I_{sc}$ 補間算出 |
-| **MPMS** | `mpms.py` | $M - T$ (FC/ZFC, 磁化率 $\chi$), $M - H$ 磁化曲線, $\mu_B/\text{f.u.}$ 単位換算 |
+| **Electrochemistry** | `electrochemistry.py` | CV ($E$ [V] vs $I$ [$\mu\mathrm{A}$]) ＆ GCD/PS ($t$ [min] vs $I$ [$\mu\mathrm{A}$]) 自動パース |
+| **PPMS (4端子)** | `ppms_4probe.py` | 温度 $T$ [K] vs 抵抗 $R$ [$\Omega$] / 抵抗率 $\rho$, 超伝導 $T_\mathrm{c}$, RRR 算出 |
+| **PPMS (6端子)** | `ppms_6probe.py` | ホール効果 $V_{xy} - H$ フィッティング, ホール係数 $R_\mathrm{H}$, 伝導型(p/n), キャリア密度 $n$, 移動度 $\mu$ |
+| **ShiftCurrent** | `shift_current.py` | 光電応答 $I - V$, ゼロバイアス光電流 $I_\mathrm{sc}$ 補間算出 |
+| **MPMS** | `mpms.py` | $M - T$ (FC/ZFC, 磁化率 $\chi$), $M - H$ 磁化曲線, $\mu_\mathrm{B}/\mathrm{f.u.}$ 単位換算 |
 
 ---
 

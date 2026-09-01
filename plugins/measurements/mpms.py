@@ -14,8 +14,8 @@ from typing import Tuple, Dict, Any, List
 
 SCHEMA = {
     "type": "MPMS",
-    "name": "MPMS 磁気測定 (M-T FC/ZFC, M-H 磁化曲線, 磁化率 χ)",
-    "description": "SQUID MPMS 磁化率 (M-T FC/ZFC, 居里・外挿分析) および 磁化曲線 (M-H, μ_B/f.u. 単位換算) 解析",
+    "name": r"MPMS 磁気測定 ($M-T$ FC/ZFC, $M-H$ 磁化曲線, 磁化率 $\chi$)",
+    "description": r"SQUID MPMS 磁化率 ($M-T$ FC/ZFC, キュリー・ワイス外挿分析) および 磁化曲線 ($M-H$, $\mu_\mathrm{B}/\mathrm{f.u.}$ 単位換算) 解析",
     "fields": [
         {
             "name": "mpms_mode",
@@ -27,35 +27,35 @@ SCHEMA = {
         },
         {
             "name": "magnetic_field_oe",
-            "label": "印加磁場 H (Oe)",
+            "label": r"印加磁場 $H$ [Oe]",
             "type": "number",
             "default": 1000.0,
             "required": False,
         },
         {
             "name": "sample_mass_mg",
-            "label": "試料質量 (mg)",
+            "label": r"試料質量 $m$ [mg]",
             "type": "number",
             "default": 10.0,
             "required": False,
         },
         {
             "name": "molecular_weight_g_mol",
-            "label": "分子量 (g/mol)",
+            "label": r"分子量 M.W. [g/mol]",
             "type": "number",
             "default": 179.66,
             "required": False,
         },
         {
             "name": "tc_tn_transition_k",
-            "label": "磁気転移温度 Tc / TN (K)",
+            "label": r"磁気転移温度 $T_\mathrm{c} / T_\mathrm{N}$ [K]",
             "type": "number",
             "default": 0.0,
             "required": False,
         },
         {
             "name": "mu_b_per_fu",
-            "label": "飽和磁気モーメント (μ_B / f.u.)",
+            "label": r"飽和磁気モーメント [$\mu_\mathrm{B}/\mathrm{f.u.}$]",
             "type": "number",
             "default": 0.0,
             "required": False,
