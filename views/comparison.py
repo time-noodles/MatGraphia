@@ -113,25 +113,37 @@ def render():
                                 "profile": {"two_theta": ex_tth.tolist(), "intensity": ex_int.tolist()},
                                 "relation_type": ""
                             })
-                if sim_list and plugin and hasattr(plugin, "render_comparison_xrd_plot_png"):
-                    comp_png, err = plugin.render_comparison_xrd_plot_png(
-                        experimental_data=None,
-                        sim_results_list=sim_list,
-                        conditions={"target": "CuKa"},
-                        remove_bg=True
-                    )
-                    if comp_png:
-                        st.image(comp_png, caption=f"XRD Overlay Comparison ({len(sim_list)} Samples)")
-                        if hasattr(plugin, "build_comparison_csv"):
-                            df_csv = plugin.build_comparison_csv(None, sim_list, remove_bg=True)
-                            if df_csv is not None:
-                                st.download_button(
-                                    label="⬇️ XRD比較データ CSV をダウンロード",
-                                    data=df_csv.to_csv(index=False),
-                                    file_name="XRD_All_Samples_Comparison.csv",
-                                    mime="text/csv",
-                                    key="dl_comp_page_xrd_csv"
-                                )
+                if sim_list:
+                    from matgraphia_plot import create_multi_trace_chart, render_plotly_with_academic_export
+                    traces = []
+                    for idx, s in enumerate(sim_list):
+                        prof = s.get("profile") or {}
+                        if prof.get("two_theta") and prof.get("intensity"):
+                            traces.append({
+                                "x": prof["two_theta"],
+                                "y": prof["intensity"],
+                                "name": s.get("material_name", f"Sample {idx+1}")
+                            })
+                    if traces:
+                        fig = create_multi_trace_chart(
+                            traces=traces,
+                            title=f"XRD Interactive Multi-Sample Overlay ({len(traces)} Samples)",
+                            x_title="2θ (degree)",
+                            y_title="Intensity (a.u.)",
+                            show_legend=True
+                        )
+                        render_plotly_with_academic_export(fig, key_prefix="xrd_comp_page_plotly", filename_base="XRD_All_Samples_Comparison")
+                    
+                    if plugin and hasattr(plugin, "build_comparison_csv"):
+                        df_csv = plugin.build_comparison_csv(None, sim_list, remove_bg=True)
+                        if df_csv is not None:
+                            st.download_button(
+                                label="⬇️ XRD比較データ CSV をダウンロード",
+                                data=df_csv.to_csv(index=False),
+                                file_name="XRD_All_Samples_Comparison.csv",
+                                mime="text/csv",
+                                key="dl_comp_page_xrd_csv"
+                            )
             else:
                 table_data = []
                 for m in type_msrs:

@@ -179,8 +179,16 @@ def render():
                     material_name=name or "Unknown",
                 )
             if sim_result:
-                if png_bytes:
-                    st.image(png_bytes, caption=f"XRD simulated pattern ({sim_result.get('mode')})")
+                prof = sim_result.get("profile") or {}
+                if prof.get("two_theta") and prof.get("intensity"):
+                    from matgraphia_plot import create_xrd_plotly_figure, render_plotly_with_academic_export
+                    fig = create_xrd_plotly_figure(
+                        exp_tth=prof["two_theta"],
+                        exp_int=prof["intensity"],
+                        sim_results_list=[sim_result],
+                        title=f"Simulated XRD Pattern ({sim_result.get('mode')}) - {name or 'Material'}"
+                    )
+                    render_plotly_with_academic_export(fig, key_prefix="mat_cif_xrd_plotly", filename_base=f"simulated_xrd_{name or 'cif'}")
                 profile_df = pd.DataFrame({"two_theta": sim_result["profile"]["two_theta"], "intensity": sim_result["profile"]["intensity"]})
                 profile_csv = profile_df.to_csv(index=False).encode("utf-8")
                 st.download_button(label="XRDパターンをCSV保存", data=profile_csv, file_name="simulated_xrd.csv", mime="text/csv", key="btn_download_mat_xrd_csv")

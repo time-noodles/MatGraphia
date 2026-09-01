@@ -134,91 +134,32 @@ def _render_xrd_upload_preview(uploaded_bytes,file_name,selected_sample_id,sampl
             sim_results_list.append(sim)
 
     exp_data={"two_theta":exp_tth.tolist(),"intensity":exp_int.tolist()}
-    if sim_results_list and hasattr(plugin,"render_comparison_xrd_plot_png"):
-        comp_png,comp_err=plugin.render_comparison_xrd_plot_png(
-            experimental_data=exp_data,
-            sim_results_list=sim_results_list,
-            conditions=preview_conds,
-            remove_bg=remove_bg,
-        )
-        if comp_png:
-            st.image(comp_png,caption=f"XRD Comparison - Exp. vs {len(sim_results_list)} Materials (with hkl indices)")
-            if hasattr(plugin,"build_comparison_csv"):
-                df_csv=plugin.build_comparison_csv(exp_data,sim_results_list,remove_bg=remove_bg)
-                if df_csv is not None:
-                    csv_str=df_csv.to_csv(index=False)
-                    st.download_button(
-                        label="⬇️ 比較プロファイル CSV をダウンロード",
-                        data=csv_str,
-                        file_name=f"XRD_Comparison_{file_name}.csv",
-                        mime="text/csv",
-                        key="dl_xrd_comp_csv"
-                    )
-            return
-        elif comp_err:
-            st.warning(f"比較グラフ描画に失敗（実測のみ表示）: {comp_err}")
     try:
-        create_symple_plots,remove_background_fn,plt=None,None,None
-        try:
-            from symple_plot import create_symple_plots as _csp
-            import matplotlib.pyplot as _plt
-            create_symple_plots,plt=_csp,_plt
-            if remove_bg:
-                try:
-                    from symple_plot import remove_background as _rb
-                    remove_background_fn=_rb
-                except ImportError:
-                    pass
-        except Exception:
-            try:
-                if hasattr(plugin,"_ensure_symple_plot_importable"):
-                    plugin._ensure_symple_plot_importable()
-                from symple_plot import create_symple_plots as _csp
-                import matplotlib.pyplot as _plt
-                create_symple_plots,plt=_csp,_plt
-                if remove_bg:
-                    try:
-                        from symple_plot import remove_background as _rb
-                        remove_background_fn=_rb
-                    except ImportError:
-                        pass
-            except Exception:
-                pass
-        if create_symple_plots is None or plt is None:
-            import pandas as pd
-            exp_int_norm=exp_int-np.nanmin(exp_int)
-            ey_max=float(np.nanmax(exp_int_norm))
-            if ey_max>0:exp_int_norm=exp_int_norm/ey_max
-            chart_df=pd.DataFrame({"2theta":exp_tth,"Intensity":exp_int_norm})
-            st.line_chart(chart_df,x="2theta",y="Intensity")
-            return
-        plot_y=exp_int.copy()
-        if remove_bg and remove_background_fn is not None:
-            try:
-                plot_y=remove_background_fn(plot_y,auto_opt=True)
-            except Exception:
-                pass
-        plot_y=plot_y-np.nanmin(plot_y)
-        py_max=float(np.nanmax(plot_y))
-        if py_max>0:plot_y=plot_y/py_max
-        fig,sp=create_symple_plots(nrows=1,ncols=1,figsize=(8.5,4.0),style="paper")
-        sp.plot(
-            exp_tth,plot_y,
-            col=(0,0,0),
-            alab=[r'$\mathrm{2}\theta\ [\mathrm{deg.}]$',"Intensity [a.u.]"],
-            cx=[float(np.nanmin(exp_tth)),float(np.nanmax(exp_tth))],
-            nony=True,
-            lab=f"Exp. ({file_name})",
+        from matgraphia_plot import create_xrd_plotly_figure, render_plotly_with_academic_export
+        fig = create_xrd_plotly_figure(
+            exp_tth=exp_tth,
+            exp_int=exp_int,
+            sim_results_list=sim_results_list if sim_results_list else None,
+            title=f"XRD Interactive Plot - {file_name}",
+            remove_bg=remove_bg
         )
-        sp.ax.legend(frameon=False,loc="upper right",fontsize=10)
-        sp.ax.tick_params(axis="y",labelleft=False,left=False)
-        fig.tight_layout()
-        buf=_io.BytesIO()
-        fig.savefig(buf,format="png",dpi=180)
-        plt.close(fig)
-        st.image(buf.getvalue(),caption=f"XRD Preview - {file_name} (実測のみ)")
+        render_plotly_with_academic_export(fig, key_prefix=f"xrd_prev_{hash(file_name)}", filename_base=f"xrd_{file_name}")
+        
+        if sim_results_list and hasattr(plugin, "build_comparison_csv"):
+            df_csv = plugin.build_comparison_csv(exp_data, sim_results_list, remove_bg=remove_bg)
+            if df_csv is not None:
+                csv_str = df_csv.to_csv(index=False)
+                st.download_button(
+                    label="⬇️ 比較プロファイル CSV をダウンロード",
+                    data=csv_str,
+                    file_name=f"XRD_Comparison_{file_name}.csv",
+                    mime="text/csv",
+                    key=f"dl_xrd_comp_csv_{hash(file_name)}"
+                )
+        return
     except Exception as e:
-        st.warning(f"XRDプレビューの描画に失敗しました: {e}")
+        st.warning(f"XRD Interactive Plotly 描画に失敗しました: {e}")
+
 
 
 # 画面描画

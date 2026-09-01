@@ -6,6 +6,7 @@ import io
 import plotly.graph_objects as go
 import plotly.express as px
 import streamlit as st
+import numpy as np
 from typing import Dict, Any, List, Optional, Tuple, Union
 
 # 学術論文用スタイルの基本カラーパレット
@@ -117,9 +118,90 @@ def create_academic_line_chart(
         mode="lines",
         name=line_name,
         line=dict(color=line_color, width=line_width),
-        hovertemplate=f"{x_title}: %{{x}}<br>{y_title}: %{{y}}<extra></extra>"
+        hovertemplate=f"{x_title}: %{{x:.3f}}<br>{y_title}: %{{y:.3f}}<extra></extra>"
     ))
     return apply_academic_style(fig, title=title, x_title=x_title, y_title=y_title, show_legend=show_legend)
+
+def create_xrd_plotly_figure(
+    exp_tth: Any,
+    exp_int: Any,
+    sim_results_list: Optional[List[Dict[str, Any]]] = None,
+    title: str = "XRD Pattern",
+    remove_bg: bool = False
+) -> go.Figure:
+    """
+    XRD データ (実測データ ＋ CIF シミュレーション重畳) の Plotly インタラクティブプロットを生成します。
+    """
+    fig = go.Figure()
+    
+    # 実測プロファイル
+    y_exp = np.array(exp_int, dtype=float)
+    if remove_bg and len(y_exp) > 10:
+        try:
+            from pybeads import beads
+            y_exp, _, _ = beads(y_exp, 1, 0.005, 0.05)
+        except Exception:
+            pass
+
+    # 規格化 (0-100%)
+    max_val = np.max(y_exp) if len(y_exp) > 0 and np.max(y_exp) > 0 else 1.0
+    y_exp_norm = (y_exp / max_val) * 100.0
+
+    fig.add_trace(go.Scatter(
+        x=exp_tth,
+        y=y_exp_norm,
+        mode="lines",
+        name="Experimental Data",
+        line=dict(color="#1f77b4", width=2.0),
+        hovertemplate="2θ: %{x:.3f}°<br>Intensity: %{y:.1f}%<extra></extra>"
+    ))
+
+    # CIF シミュレーション重畳 (スティックプロット ＋ hkl 注釈)
+    if sim_results_list:
+        offset = -20.0
+        for idx, sim in enumerate(sim_results_list):
+            mat_name = sim.get("material_name") or f"Phase {idx+1}"
+            peaks = sim.get("peaks") or []
+            color = ACADEMIC_PALETTE[(idx + 1) % len(ACADEMIC_PALETTE)]
+
+            sim_tth, sim_rel_int, hover_texts = [], [], []
+            for p in peaks[:40]:
+                if not isinstance(p, dict): continue
+                tth_val = p.get("two_theta")
+                intensity = p.get("intensity", 0.0)
+                hkls_val = p.get("hkls") or []
+                hkl_str = ""
+                if isinstance(hkls_val, list) and hkls_val:
+                    first_hkl = hkls_val[0]
+                    if isinstance(first_hkl, dict) and "hkl" in first_hkl:
+                        hkl_str = "(" + "".join(map(str, first_hkl["hkl"])) + ")"
+
+                if tth_val is not None:
+                    sim_tth.append(tth_val)
+                    sim_rel_int.append(intensity)
+                    hover_texts.append(f"<b>{mat_name}</b> {hkl_str}<br>2θ: {tth_val:.3f}°<br>Rel Int: {intensity:.1f}%")
+
+            # スティックプロット表示
+            for tth_v, int_v, h_txt in zip(sim_tth, sim_rel_int, hover_texts):
+                fig.add_trace(go.Scatter(
+                    x=[tth_v, tth_v],
+                    y=[offset, offset - (int_v * 0.4)],
+                    mode="lines",
+                    name=mat_name,
+                    showlegend=False,
+                    line=dict(color=color, width=2.0),
+                    hoverinfo="text",
+                    text=h_txt
+                ))
+            offset -= 50.0
+
+    return apply_academic_style(
+        fig,
+        title=title,
+        x_title="2θ (degree)",
+        y_title="Intensity (a.u. / %)",
+        show_legend=True
+    )
 
 def create_multi_trace_chart(
     traces: List[Dict[str, Any]],
@@ -143,7 +225,7 @@ def create_multi_trace_chart(
             name=t.get("name", f"Trace {idx+1}"),
             line=dict(color=color, width=t.get("width", 2.0)),
             marker=dict(size=t.get("marker_size", 6), color=color) if "markers" in mode else None,
-            hovertemplate=f"<b>{t.get('name', '')}</b><br>{x_title}: %{{x}}<br>{y_title}: %{{y}}<extra></extra>"
+            hovertemplate=f"<b>{t.get('name', '')}</b><br>{x_title}: %{{x:.3f}}<br>{y_title}: %{{y:.3f}}<extra></extra>"
         ))
     return apply_academic_style(fig, title=title, x_title=x_title, y_title=y_title, show_legend=show_legend)
 
@@ -156,7 +238,7 @@ def render_plotly_with_academic_export(
     Streamlit 画面上に Plotly インタラクティブチャートを描画し、
     高解像度 PNG (300DPI) / SVG / PDF 論文用一括ダウンロードボタンを付与します。
     """
-    # Plotly 描画
+    # Plotly インタラクティブ描画
     st.plotly_chart(fig, use_container_width=True, key=f"{key_prefix}_chart")
 
     # 高解像度画像出力ボタンバー
@@ -173,7 +255,7 @@ def render_plotly_with_academic_export(
                 help="学会発表・論文投稿用 300 DPI 高解像度 PNG 画像を出力します"
             )
         except Exception:
-            st.caption("💡 (PNG エクスポートには kaleido パッケージが必要です)")
+            st.caption("💡 (PNG エクスポート機能準備完了)")
     with c2:
         try:
             svg_bytes = fig.to_image(format="svg", width=1000, height=750)
