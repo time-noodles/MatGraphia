@@ -33,7 +33,14 @@ def render():
             st.info("登録されているサンプルデータはありません。")
         else:
             draft_samples = [s for s in all_samples if s.get("is_draft")]
-            st.info(f"💡 全サンプル: **{len(all_samples)}** 件 (下書き: **{len(draft_samples)}** 件)")
+            col_info, col_clean = st.columns([3, 1])
+            with col_info:
+                st.info(f"💡 全サンプル: **{len(all_samples)}** 件 (下書き: **{len(draft_samples)}** 件)")
+            with col_clean:
+                if draft_samples and st.button("🧹 下書きを全一括削除", key="btn_clean_smp_drafts"):
+                    cnt = db.delete_drafts_by_type("samples")
+                    st.success(f"下書きサンプル {cnt} 件を一括削除しました。")
+                    st.rerun()
             
             smp_df = pd.DataFrame([{
                 "ID": s.get("sample_id"),
@@ -47,8 +54,8 @@ def render():
             st.dataframe(smp_df, hide_index=True)
 
             st.write("---")
-            st.markdown("##### ✏️ 選択サンプルの元UIと同等での直接編集 ＆ 本登録昇格")
-            sel_smp_id = st.selectbox("編集するサンプルを選択", [s["sample_id"] for s in all_samples], format_func=lambda x: f"{next((s['human_id'] for s in all_samples if s['sample_id']==x), x)} ({'下書き' if next((s.get('is_draft') for s in all_samples if s['sample_id']==x), False) else '本登録'})", key="sb_edit_smp_main")
+            st.markdown("##### ✏️ 選択サンプルの元UIと同等での直接編集 ＆ 本登録昇格 / 削除")
+            sel_smp_id = st.selectbox("編集または削除するサンプルを選択", [s["sample_id"] for s in all_samples], format_func=lambda x: f"{next((s['human_id'] for s in all_samples if s['sample_id']==x), x)} ({'下書き' if next((s.get('is_draft') for s in all_samples if s['sample_id']==x), False) else '本登録'})", key="sb_edit_smp_main")
             target_s = next(s for s in all_samples if s["sample_id"] == sel_smp_id)
 
             with st.form(key=f"form_edit_sample_{sel_smp_id}"):
@@ -60,11 +67,13 @@ def render():
                     new_loc = st.text_input("物理的な保管場所 (例: デシケーター Box #A2)", value=target_s.get("location", ""), key=f"inp_loc_{sel_smp_id}")
                     new_rem = st.text_area("備考", value=target_s.get("remarks", ""), key=f"inp_rem_{sel_smp_id}")
 
-                c_b1, c_b2 = st.columns(2)
+                c_b1, c_b2, c_b3 = st.columns(3)
                 with c_b1:
-                    btn_save_main = st.form_submit_button("✨ 正式に「本登録」へ昇格・保存する", type="primary")
+                    btn_save_main = st.form_submit_button("✨ 正式に「本登録」へ保存", type="primary")
                 with c_b2:
-                    btn_save_draft = st.form_submit_button("📝 下書き（仮登録）として更新保存する")
+                    btn_save_draft = st.form_submit_button("📝 下書きとして保存")
+                with c_b3:
+                    btn_del_smp = st.form_submit_button("🗑️ レコードを削除")
 
                 if btn_save_main or btn_save_draft:
                     target_s["human_id"] = new_hid
@@ -74,6 +83,10 @@ def render():
                     target_s["is_draft"] = False if btn_save_main else True
                     db.update_sample(target_s)
                     st.success(f"サンプル 「{new_hid}」 の変更内容を保存しました！")
+                    st.rerun()
+                elif btn_del_smp:
+                    db.delete_sample(sel_smp_id)
+                    st.warning(f"サンプル 「{new_hid}」 を削除しました。")
                     st.rerun()
 
     elif "測定データ" in entity_type:

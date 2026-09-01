@@ -237,19 +237,24 @@ def navigate_to(target_page_title:str):
 
 def render_location_badge(location_str: str | None, key_prefix: str = "loc"):
     """
-    保管場所インタラクティブリンクバッジの描画
+    保管場所インタラクティブリンクバッジの描画 (ポップオーバーで同場所の全サンプルを一括逆引き表示)
     """
     import streamlit as st
+    import database as db
     if not location_str or location_str.strip() in ["", "未指定", "なし", "-"]:
         st.caption("📍 保管場所: 未指定")
         return
     loc = location_str.strip()
-    col_icon, col_btn = st.columns([1, 15])
-    with col_icon:
-        st.write("📍")
-    with col_btn:
-        if st.button(f"保管場所: {loc} (この場所のサンプルを検索)", key=f"btn_loc_filter_{key_prefix}_{hash(loc)}"):
-            st.session_state["sample_location_search_query"] = loc
-            navigate_to("サンプルの登録")
+    with st.popover(f"📍 保管場所: {loc}", help="クリックして同じ保管場所に収容されている全サンプルを一括逆引き表示"):
+        st.markdown(f"#### 📍 保管場所: **{loc}**")
+        all_samples = db.fetch_all_samples()
+        same_loc_samples = [s for s in all_samples if (s.get("location") or "").strip() == loc]
+        st.caption(f"収容サンプル数: **{len(same_loc_samples)}** 件")
+        if same_loc_samples:
+            for smp in same_loc_samples:
+                st.markdown(f"- **{smp.get('human_id')}** (`{smp.get('form')}`) | 登録日: {str(smp.get('created_at'))[:10]}")
+        else:
+            st.info("同保管場所に収容されている他サンプルはありません。")
+
 
 

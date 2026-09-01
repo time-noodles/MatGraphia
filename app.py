@@ -145,6 +145,26 @@ def main():
         key="nav_menu"
     )
 
+    # 📌 未完了仮登録（下書き）アクセスドック
+    all_draft_count = 0
+    for tbl in ["samples", "measurements", "events", "materials", "literatures"]:
+        try:
+            conn = db.get_connection()
+            cur = conn.cursor()
+            cur.execute(f"SELECT COUNT(*) FROM {tbl} WHERE is_draft = 1")
+            all_draft_count += cur.fetchone()[0]
+            conn.close()
+        except Exception:
+            pass
+    
+    if all_draft_count > 0:
+        st.sidebar.write("---")
+        st.sidebar.warning(f"📝 **未完了の下書き**: **{all_draft_count}** 件")
+        if st.sidebar.button("📂 データ管理画面で補完する", key="sb_btn_jump_draft_dock"):
+            st.session_state["category_menu"] = "📊 解析 ＆ データ管理"
+            st.session_state["nav_menu"] = "📂 仮登録・データ管理・編集"
+            st.rerun()
+
 
 
     # 選択されている機能ページに応じた「サイドバー埋め込み型ステップジャンプ」の描画 (ダミー全項目表示なし)

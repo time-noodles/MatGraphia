@@ -860,7 +860,68 @@ def fetch_all_tasks()->List[Dict]:
     conn.close()
     return res
 
+# --- 削除 ＆ クリーンアップ関数 ---
+def delete_sample(sample_id: str) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM samples WHERE sample_id = ?", (sample_id,))
+    cursor.execute("DELETE FROM tags WHERE entity_id = ?", (sample_id,))
+    conn.commit()
+    conn.close()
+    _safe_cache_clear()
+    return True
 
+def delete_measurement(measurement_id: str) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM measurements WHERE measurement_id = ?", (measurement_id,))
+    cursor.execute("DELETE FROM tags WHERE entity_id = ?", (measurement_id,))
+    conn.commit()
+    conn.close()
+    _safe_cache_clear()
+    return True
+
+def delete_event(event_id: str) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM events WHERE event_id = ?", (event_id,))
+    cursor.execute("DELETE FROM tags WHERE entity_id = ?", (event_id,))
+    conn.commit()
+    conn.close()
+    _safe_cache_clear()
+    return True
+
+def delete_material(material_id: str) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM materials WHERE material_id = ?", (material_id,))
+    cursor.execute("DELETE FROM tags WHERE entity_id = ?", (material_id,))
+    conn.commit()
+    conn.close()
+    _safe_cache_clear()
+    return True
+
+def delete_literature(literature_id: str) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM literatures WHERE literature_id = ?", (literature_id,))
+    cursor.execute("DELETE FROM tags WHERE entity_id = ?", (literature_id,))
+    conn.commit()
+    conn.close()
+    _safe_cache_clear()
+    return True
+
+def delete_drafts_by_type(entity_table: str) -> int:
+    valid_tables = ["samples", "measurements", "events", "materials", "literatures"]
+    if entity_table not in valid_tables: return 0
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(f"DELETE FROM {entity_table} WHERE is_draft = 1")
+    count = cursor.rowcount
+    conn.commit()
+    conn.close()
+    _safe_cache_clear()
+    return count
 
 # 実験データを含まないフィードバック専用JSONエクスポート
 def export_developer_logs_json()->str:
@@ -899,4 +960,5 @@ def import_developer_logs_json(json_str:str)->int:
     conn.commit()
     conn.close()
     return imported_count
+
 

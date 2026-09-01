@@ -148,63 +148,59 @@ def render():
     elif "4. 備考" in active_step:
         st.components.v1.html("<script>window.location.hash = '#step4'; document.getElementById('step4')?.scrollIntoView({behavior: 'smooth'});</script>", height=0)
 
-    # 1. 基本情報 ＆ 合成タイプ選択
+    # 1. 基本情報 ＆ 合成タイプ選択 (アコーディオン)
     st.markdown('<div id="step1"></div>', unsafe_allow_html=True)
-    st.subheader("1. 基本情報 ＆ 合成タイプ選択")
-    col_proj, col_mat = st.columns(2)
-    with col_proj:
-        proj_sel = st.selectbox("プロジェクトID (必須)", ["(新規作成)"] + all_projects, key="evt_proj_sel")
-        project_id = st.text_input("新規プロジェクト名を入力", value="Project-A", key="evt_project_id_new") if proj_sel == "(新規作成)" else proj_sel
-    with col_mat:
-        mat_sel = st.selectbox("対象物質 (必須)", ["(新規作成)"] + all_materials, key="evt_mat_sel")
-        target_material = st.text_input("新規対象物質名を入力", value="Bi2Te3", key="evt_target_material_new") if mat_sel == "(新規作成)" else mat_sel
+    with st.expander("📌 1. 基本情報 ＆ 合成タイプ選択", expanded=True):
+        col_proj, col_mat = st.columns(2)
+        with col_proj:
+            proj_sel = st.selectbox("プロジェクトID (必須)", ["(新規作成)"] + all_projects, key="evt_proj_sel")
+            project_id = st.text_input("新規プロジェクト名を入力", value="Project-A", key="evt_project_id_new") if proj_sel == "(新規作成)" else proj_sel
+        with col_mat:
+            mat_sel = st.selectbox("対象物質 (必須)", ["(新規作成)"] + all_materials, key="evt_mat_sel")
+            target_material = st.text_input("新規対象物質名を入力", value="Bi2Te3", key="evt_target_material_new") if mat_sel == "(新規作成)" else mat_sel
 
-    mw_val = calc_molecular_weight(target_material)
-    if mw_val:
-        st.info(f"⚖️ 対象物質 **【 {target_material} 】** の分子量 (M.W.): **{mw_val:.3f} g/mol**")
-    elif target_material:
-        st.caption(f"対象物質: {target_material}")
-        
-    event_type = st.selectbox("イベントタイプ", evt_type_options, key="evt_event_type")
-    motivation = st.text_area("動機 (Motivation) (必須)", placeholder="なぜこの条件で実験を行うのか？", key="evt_motivation")
-    st.write("---")
+        mw_val = calc_molecular_weight(target_material)
+        if mw_val:
+            st.info(f"秤 対象物質 **【 {target_material} 】** の分子量 (M.W.): **{mw_val:.3f} g/mol**")
+        elif target_material:
+            st.caption(f"対象物質: {target_material}")
+            
+        event_type = st.selectbox("イベントタイプ", evt_type_options, key="evt_event_type")
+        motivation = st.text_area("動機 (Motivation) (必須)", placeholder="なぜこの条件で実験を行うのか？", key="evt_motivation")
 
-    # 2. 実験パラメータ ＆ 条件入力
+    # 2. 実験パラメータ ＆ 条件入力 (アコーディオン)
     st.markdown('<div id="step2"></div>', unsafe_allow_html=True)
-    st.subheader("2. 実験パラメータ ＆ 条件入力")
-    schema = EVENT_SCHEMAS.get(event_type, {})
-    prefill_params = st.session_state.get("evt_prefill_params", {}) if isinstance(st.session_state.get("evt_prefill_params", {}), dict) else {}
-    form_seed = int(st.session_state.get("evt_form_seed", 0))
-    parameters = render_dynamic_form(schema, key_prefix=f"events_{form_seed}", initial_data=prefill_params)
+    with st.expander("⚙️ 2. 実験パラメータ ＆ 条件入力", expanded=True):
+        schema = EVENT_SCHEMAS.get(event_type, {})
+        prefill_params = st.session_state.get("evt_prefill_params", {}) if isinstance(st.session_state.get("evt_prefill_params", {}), dict) else {}
+        form_seed = int(st.session_state.get("evt_form_seed", 0))
+        parameters = render_dynamic_form(schema, key_prefix=f"events_{form_seed}", initial_data=prefill_params)
 
-    elem_mw_info = []
-    if isinstance(parameters, dict):
-        for k, v in parameters.items():
-            if isinstance(v, str) and v.strip() and len(v.strip()) <= 3:
-                atomic_w = get_atomic_weight(v.strip())
-                if atomic_w:
-                    elem_mw_info.append(f"**{v.strip()}**: {atomic_w:.3f} g/mol")
-    if elem_mw_info:
-        st.info("⚖️ **【秤量・配分元素のリアルタイム M.W. (原子量)】** " + " &nbsp;|&nbsp; ".join(elem_mw_info))
-    st.write("---")
+        elem_mw_info = []
+        if isinstance(parameters, dict):
+            for k, v in parameters.items():
+                if isinstance(v, str) and v.strip() and len(v.strip()) <= 3:
+                    atomic_w = get_atomic_weight(v.strip())
+                    if atomic_w:
+                        elem_mw_info.append(f"**{v.strip()}**: {atomic_w:.3f} g/mol")
+        if elem_mw_info:
+            st.info("秤 **【秤量・配分元素のリアルタイム M.W. (原子量)】** " + " &nbsp;|&nbsp; ".join(elem_mw_info))
 
-    # 3. 派生元参照 (サンプル・イベント・文献)
+    # 3. 派生元参照 (サンプル・イベント・文献) (アコーディオン)
     st.markdown('<div id="step3"></div>', unsafe_allow_html=True)
-    st.subheader("3. 派生元参照 (サンプル・イベント・文献)")
-    st.caption("派生元となる「元サンプル」「参照元イベント」「ベース文献」のいずれか1つ以上を選択してください。")
-    col1, col2 = st.columns(2)
-    with col1:
-        input_samples = st.multiselect("元サンプル", list(sample_options.keys()), key="evt_input_samples")
-        ref_events = st.multiselect("参照元イベント", list(evt_options.keys()), key="evt_ref_events")
-    with col2:
-        ref_lits = st.multiselect("ベース文献", list(lit_options.keys()), key="evt_ref_lits")
-    st.write("---")
+    with st.expander("🔗 3. 派生元参照 (サンプル・イベント・文献)", expanded=True):
+        st.caption("派生元となる「元サンプル」「参照元イベント」「ベース文献」のいずれか1つ以上を選択してください。")
+        col1, col2 = st.columns(2)
+        with col1:
+            input_samples = st.multiselect("元サンプル", list(sample_options.keys()), key="evt_input_samples")
+            ref_events = st.multiselect("参照元イベント", list(evt_options.keys()), key="evt_ref_events")
+        with col2:
+            ref_lits = st.multiselect("ベース文献", list(lit_options.keys()), key="evt_ref_lits")
 
-    # 4. 備考 ＆ 登録実行
+    # 4. 備考 ＆ 登録実行 (アコーディオン)
     st.markdown('<div id="step4"></div>', unsafe_allow_html=True)
-    st.subheader("4. 備考 ＆ 登録実行")
-    remarks = st.text_area("備考", key="evt_remarks")
-
+    with st.expander("📝 4. 備考 ＆ 登録実行", expanded=True):
+        remarks = st.text_area("備考", key="evt_remarks")
 
     # Bottom Action Bar (最下部デュアルボタン)
     st.write("")
@@ -220,6 +216,7 @@ def render():
         if st.session_state.get("trigger_instant_draft_save"):
             st.session_state["trigger_instant_draft_save"] = False
         _execute_event_submit(is_draft_mode=True)
+
 
 
 
