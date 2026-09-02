@@ -23,6 +23,66 @@ ACADEMIC_PALETTE = [
     "#17becf"   # Cyan
 ]
 
+import re
+
+def clean_math_label(text: str) -> str:
+    r"""
+    Plotly用に Raw LaTeX 数式文字列 ($...$) を綺麗な HTML / Unicode 表記に自動変換します。
+    プロット画像上で $M$ や \mathrm{...} などの文字列がそのまま漏れ出る不具合を解消します。
+    """
+    if not text or not isinstance(text, str):
+        return ""
+    
+    res = text
+    # よく使われる物理単位・記号の変換マップ
+    replacements = [
+        (r"$\mu_\mathrm{B}/\mathrm{f.u.}$", "μ<sub>B</sub>/f.u."),
+        (r"\mu_\mathrm{B}/\mathrm{f.u.}", "μ<sub>B</sub>/f.u."),
+        (r"$\mu_\mathrm{B}$", "μ<sub>B</sub>"),
+        (r"$\mathrm{f.u.}$", "f.u."),
+        (r"$\mathrm{cm}^{-1}$", "cm<sup>-1</sup>"),
+        (r"\mathrm{cm}^{-1}", "cm<sup>-1</sup>"),
+        (r"$\Omega\cdot\mathrm{cm}$", "Ω·cm"),
+        (r"$\Omega$", "Ω"),
+        (r"$\mu\mathrm{A}$", "μA"),
+        (r"$T_\mathrm{c}$", "<i>T</i><sub>c</sub>"),
+        (r"T_\mathrm{c}", "<i>T</i><sub>c</sub>"),
+        (r"$T_\mathrm{N}$", "<i>T</i><sub>N</sub>"),
+        (r"$\mathrm{Oe}$", "Oe"),
+        (r"$\mathrm{T}$", "T"),
+        (r"$\mathrm{K}$", "K"),
+        (r"$\mathrm{V}$", "V"),
+        (r"$\mathrm{A}$", "A"),
+        (r"$\mathrm{e}$", "e"),
+        (r"\mathrm{Oe}", "Oe"),
+        (r"\mathrm", ""),
+        (r"\bar{1}", "1̅"),
+        (r"\bar{2}", "2̅"),
+        (r"\bar{3}", "3̅"),
+        (r"$T$", "<i>T</i>"),
+        (r"$M$", "<i>M</i>"),
+        (r"$H$", "<i>H</i>"),
+        (r"$R$", "<i>R</i>"),
+        (r"$V$", "<i>V</i>"),
+        (r"$I$", "<i>I</i>"),
+        (r"$\rho$", "ρ"),
+        (r"$\mu$", "μ"),
+        (r"$\theta$", "θ"),
+        (r"$2\theta$", "2θ"),
+        (r"2\theta", "2θ"),
+    ]
+    for old, new in replacements:
+        res = res.replace(old, new)
+    
+    # 汎用正規表現処理: \mathrm{xyz} -> xyz, <sub> ... </sub> 等
+    res = re.sub(r'\\mathrm\{([^}]+)\}', r'\1', res)
+    res = re.sub(r'\\bar\{([^}]+)\}', r'\1̅', res)
+    res = re.sub(r'\$_\{([^}]+)\}\$', r'<sub>\1</sub>', res)
+    res = re.sub(r'\$\^\{([^}]+)\}\$', r'<sup>\1</sup>', res)
+    res = re.sub(r'\$([^$]+)\$', r'<i>\1</i>', res)
+    res = res.replace("$", "")
+    return res
+
 def apply_academic_style(
     fig: go.Figure,
     title: str = "",
@@ -36,15 +96,24 @@ def apply_academic_style(
     """
     Plotly Figure オブジェクトへ学術論文スタイル (拡大フォント・主/副目盛り・格子線非表示・黒フレーム) を適用します。
     """
+    clean_title = clean_math_label(title)
+    clean_x = clean_math_label(x_title)
+    clean_y = clean_math_label(y_title)
+
+    # 凡例・トレース名の LaTeX 自動クリーンアップ
+    for trace in fig.data:
+        if hasattr(trace, "name") and trace.name:
+            trace.name = clean_math_label(trace.name)
+
     fig.update_layout(
         title=dict(
-            text=title,
+            text=clean_title,
             x=0.5,
             xanchor="center",
             font=dict(size=font_size + 4, color="#111111", family=font_family)
         ),
         xaxis=dict(
-            title=dict(text=x_title, font=dict(size=font_size + 2, color="#000000", family=font_family)),
+            title=dict(text=clean_x, font=dict(size=font_size + 2, color="#000000", family=font_family)),
             showline=True,
             linewidth=2.0,
             linecolor="#000000",
@@ -65,7 +134,7 @@ def apply_academic_style(
             )
         ),
         yaxis=dict(
-            title=dict(text=y_title, font=dict(size=font_size + 2, color="#000000", family=font_family)),
+            title=dict(text=clean_y, font=dict(size=font_size + 2, color="#000000", family=font_family)),
             showline=True,
             linewidth=2.0,
             linecolor="#000000",
@@ -168,7 +237,7 @@ def create_xrd_plotly_figure(
         hovertemplate="2θ: %{x:.3f}°<br>Intensity: %{y:.1f}%<extra></extra>"
     ))
 
-    # CIF シミュレーション重畳 (スティックプロット ＋ hkl 注釈)
+    # CIF シミュレーション重畳 (スティックプロット ＋ hkl ミラー指数直書き注釈)
     if sim_results_list:
         offset = -20.0
         for idx, sim in enumerate(sim_results_list):
@@ -176,28 +245,28 @@ def create_xrd_plotly_figure(
             peaks = sim.get("peaks") or []
             color = ACADEMIC_PALETTE[(idx + 1) % len(ACADEMIC_PALETTE)]
 
-            sim_tth, sim_rel_int, hover_texts = [], [], []
             for p in peaks[:40]:
                 if not isinstance(p, dict): continue
                 tth_val = p.get("two_theta")
                 intensity = p.get("intensity", 0.0)
+                if tth_val is None or intensity < 2.0: continue
+
                 hkls_val = p.get("hkls") or []
                 hkl_str = ""
                 if isinstance(hkls_val, list) and hkls_val:
                     first_hkl = hkls_val[0]
                     if isinstance(first_hkl, dict) and "hkl" in first_hkl:
-                        hkl_str = "(" + "".join(map(str, first_hkl["hkl"])) + ")"
+                        raw_hkl = first_hkl["hkl"]
+                        hkl_str = "".join(str(abs(int(v))) + ("̅" if int(v) < 0 else "") for v in raw_hkl)
+                        hkl_str = f"({hkl_str})"
 
-                if tth_val is not None:
-                    sim_tth.append(tth_val)
-                    sim_rel_int.append(intensity)
-                    hover_texts.append(f"<b>{mat_name}</b> {hkl_str}<br>2θ: {tth_val:.3f}°<br>Rel Int: {intensity:.1f}%")
+                stick_bottom = offset - (intensity * 0.4)
+                h_txt = f"<b>{mat_name}</b> {hkl_str}<br>2θ: {tth_val:.3f}°<br>Rel Int: {intensity:.1f}%"
 
-            # スティックプロット表示
-            for tth_v, int_v, h_txt in zip(sim_tth, sim_rel_int, hover_texts):
+                # スティック描画
                 fig.add_trace(go.Scatter(
-                    x=[tth_v, tth_v],
-                    y=[offset, offset - (int_v * 0.4)],
+                    x=[tth_val, tth_val],
+                    y=[offset, stick_bottom],
                     mode="lines",
                     name=mat_name,
                     showlegend=False,
@@ -205,13 +274,26 @@ def create_xrd_plotly_figure(
                     hoverinfo="text",
                     text=h_txt
                 ))
+
+                # プロット上に直接 hkl ミラー指数テキストを表示
+                if hkl_str and intensity >= 10.0:
+                    fig.add_annotation(
+                        x=tth_val,
+                        y=stick_bottom - 3.0,
+                        text=f"<b>{hkl_str}</b>",
+                        showarrow=False,
+                        font=dict(size=14, color=color),
+                        textangle=-90,
+                        yshift=-5
+                    )
+
             offset -= 50.0
 
     return apply_academic_style(
         fig,
         title=title,
-        x_title="2θ (degree)",
-        y_title="Intensity (a.u. / %)",
+        x_title="2θ [deg]",
+        y_title="Intensity [a.u.]",
         show_legend=True
     )
 
