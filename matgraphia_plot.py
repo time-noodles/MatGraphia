@@ -29,59 +29,71 @@ def apply_academic_style(
     x_title: str = "",
     y_title: str = "",
     font_family: str = "DejaVu Sans, Arial, sans-serif",
-    font_size: int = 14,
+    font_size: int = 22,
     show_legend: bool = True,
     aspect_ratio: Optional[float] = None
 ) -> go.Figure:
     """
-    Plotly Figure オブジェクトへ学術論文スタイル (黒フレーム・目盛り・LaTeXラベル) を全自動適用します。
+    Plotly Figure オブジェクトへ学術論文スタイル (拡大フォント・主/副目盛り・格子線非表示・黒フレーム) を適用します。
     """
     fig.update_layout(
         title=dict(
             text=title,
             x=0.5,
             xanchor="center",
-            font=dict(size=font_size + 2, color="#111111", family=font_family)
+            font=dict(size=font_size + 4, color="#111111", family=font_family)
         ),
         xaxis=dict(
-            title=dict(text=x_title, font=dict(size=font_size, color="#000000", family=font_family)),
+            title=dict(text=x_title, font=dict(size=font_size + 2, color="#000000", family=font_family)),
             showline=True,
-            linewidth=1.5,
+            linewidth=2.0,
             linecolor="#000000",
             mirror=True,
             ticks="inside",
-            ticklen=6,
-            tickwidth=1.2,
+            ticklen=9,
+            tickwidth=1.8,
             tickcolor="#000000",
-            tickfont=dict(size=font_size - 2, color="#000000", family=font_family),
-            gridcolor="#e0e0e0",
-            gridwidth=0.5,
-            zeroline=False
+            tickfont=dict(size=font_size, color="#000000", family=font_family),
+            showgrid=False,
+            zeroline=False,
+            minor=dict(
+                ticks="inside",
+                ticklen=5,
+                tickwidth=1.0,
+                tickcolor="#000000",
+                showgrid=False
+            )
         ),
         yaxis=dict(
-            title=dict(text=y_title, font=dict(size=font_size, color="#000000", family=font_family)),
+            title=dict(text=y_title, font=dict(size=font_size + 2, color="#000000", family=font_family)),
             showline=True,
-            linewidth=1.5,
+            linewidth=2.0,
             linecolor="#000000",
             mirror=True,
             ticks="inside",
-            ticklen=6,
-            tickwidth=1.2,
+            ticklen=9,
+            tickwidth=1.8,
             tickcolor="#000000",
-            tickfont=dict(size=font_size - 2, color="#000000", family=font_family),
-            gridcolor="#e0e0e0",
-            gridwidth=0.5,
-            zeroline=False
+            tickfont=dict(size=font_size, color="#000000", family=font_family),
+            showgrid=False,
+            zeroline=False,
+            minor=dict(
+                ticks="inside",
+                ticklen=5,
+                tickwidth=1.0,
+                tickcolor="#000000",
+                showgrid=False
+            )
         ),
         paper_bgcolor="#ffffff",
         plot_bgcolor="#ffffff",
-        margin=dict(l=65, r=30, t=50 if title else 30, b=55),
+        margin=dict(l=85, r=35, t=65 if title else 35, b=75),
         showlegend=show_legend,
         legend=dict(
-            font=dict(size=font_size - 3, color="#000000"),
+            font=dict(size=font_size - 2, color="#000000"),
             bordercolor="#000000",
-            borderwidth=1,
-            bgcolor="rgba(255, 255, 255, 0.9)",
+            borderwidth=1.5,
+            bgcolor="rgba(255, 255, 255, 0.95)",
             x=0.98,
             y=0.98,
             xanchor="right",
@@ -89,12 +101,12 @@ def apply_academic_style(
         ),
         hoverlabel=dict(
             bgcolor="#ffffff",
-            font_size=13,
+            font_size=font_size - 4,
             font_family=font_family
         )
     )
     if aspect_ratio:
-        fig.update_layout(height=480, width=int(480 * aspect_ratio))
+        fig.update_layout(height=520, width=int(520 * aspect_ratio))
     return fig
 
 def create_academic_line_chart(
@@ -236,8 +248,47 @@ def render_plotly_with_academic_export(
 ):
     """
     Streamlit 画面上に Plotly インタラクティブチャートを描画し、
-    高解像度 PNG (300DPI) / SVG / PDF 論文用一括ダウンロードボタンを付与します。
+    リアルタイムGUIフォントサイズ調整バー ＆ 300DPI PNG / SVG / PDF 論文用一括ダウンロードボタンを付与します。
     """
+    with st.expander("🎛️ グラフ文字サイズ・主/副目盛りデザイン設定 (GUI Control)", expanded=False):
+        c_font, c_minor = st.columns(2)
+        with c_font:
+            font_size_val = st.slider(
+                "🔤 フォントサイズ (Font Size)",
+                min_value=12,
+                max_value=40,
+                value=22,
+                step=1,
+                key=f"{key_prefix}_gui_fontsize",
+                help="論文・発表スライド用に文字の大きさを即座に調整します"
+            )
+        with c_minor:
+            show_minor_ticks = st.checkbox(
+                "📐 副目盛り線 (Minor Ticks) を表示",
+                value=True,
+                key=f"{key_prefix}_gui_minorticks",
+                help="主目盛りの間の副目盛り線の表示・非表示を切り替えます"
+            )
+
+        # リアルタイムでフォントサイズ・副目盛り設定を再適用
+        fig.update_layout(
+            font=dict(size=font_size_val),
+            title=dict(font=dict(size=font_size_val + 4)),
+            xaxis=dict(
+                title=dict(font=dict(size=font_size_val + 2)),
+                tickfont=dict(size=font_size_val),
+                showgrid=False,
+                minor=dict(ticks="inside" if show_minor_ticks else "", ticklen=5, tickwidth=1.0, showgrid=False)
+            ),
+            yaxis=dict(
+                title=dict(font=dict(size=font_size_val + 2)),
+                tickfont=dict(size=font_size_val),
+                showgrid=False,
+                minor=dict(ticks="inside" if show_minor_ticks else "", ticklen=5, tickwidth=1.0, showgrid=False)
+            ),
+            legend=dict(font=dict(size=font_size_val - 2))
+        )
+
     # Plotly インタラクティブ描画
     st.plotly_chart(fig, use_container_width=True, key=f"{key_prefix}_chart")
 
